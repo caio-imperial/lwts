@@ -1,135 +1,143 @@
-# Arquitetura e organização do repositório
+# Architecture and repository layout
 
-Este documento descreve o que existe **hoje** no repositório. Para o contrato de
-URLs, veja [ROUTES.md](ROUTES.md).
+This document describes what exists in the repository **today**. For the URL
+contract, see [ROUTES.md](ROUTES.md).
 
-## Visão geral
+## Overview
 
-O repositório hospeda três produtos e três toolchains:
+The repository hosts three products and three toolchains:
 
-| Área | O que é | Toolchain |
+| Area | What it is | Toolchain |
 |---|---|---|
-| `server/` | API HTTP, SSE/WebSocket, CLI administrativo e migrations | Go 1.25+ |
-| `web/` | SPA de kanban (vanilla JS + Vite) | Node 20 (somente build/teste) |
-| `docs/` | Landing page publicada via GitHub Pages (`CNAME`) | HTML/CSS/JS puro |
-| `tests/` | Specs manuais de UI para agente + testes unitários de frontend | Node |
-| `tf/`, `Dockerfile*`, `docker-compose*.yml` | empacotamento e deploy (Docker, Lambda, Terraform) | Docker/Terraform |
+| `server/` | HTTP API, SSE/WebSocket, admin CLI and migrations | Go 1.25+ |
+| `web/` | Kanban SPA (vanilla JS + Vite) | Node 20 (build/test only) |
+| `docs/` | Landing page published via GitHub Pages (`CNAME`) | plain HTML/CSS/JS |
+| `tests/` | Manual agent UI specs + frontend unit/E2E tests | Node |
+| `tf/`, `Dockerfile*`, `docker-compose*.yml` | packaging and deploy (Docker, Lambda, Terraform) | Docker/Terraform |
 
-O runtime de produção é **apenas o binário Go**; Node não roda em produção.
+The production runtime is **only the Go binary**; Node does not run in
+production.
 
 ## Backend (`server/`)
 
 ```
 server/
 ├── cmd/
-│   ├── main.go        # entrypoint: config, DB, rotas, middleware, estáticos
+│   ├── main.go        # entrypoint: config, DB, routes, middleware, static files
 │   ├── admin.go       # CLI: users, boards, cards, seed, backup, restore, api-key
-│   └── plugins.go     # descoberta/render de header plugins
+│   └── plugins.go     # header plugin discovery/render
 ├── internal/
-│   ├── auth/          # JWT, login/registro, senha, middleware de auth
-│   ├── board/         # handlers de board + busca/snippets
-│   ├── card/          # handlers de card + imagens
-│   ├── comment/       # handlers de comentário
-│   ├── config/        # configuração por variáveis de ambiente
-│   ├── db/            # datasource SQLite/Postgres, migrator
-│   ├── discord/       # notificações Discord
-│   ├── embed/         # busca semântica opcional (pgvector + embeddings)
+│   ├── auth/          # JWT, login/register, passwords, auth middleware
+│   ├── board/         # board handlers + search/snippets
+│   ├── card/          # card handlers + images
+│   ├── comment/       # comment handlers
+│   ├── config/        # environment-based configuration
+│   ├── db/            # SQLite/Postgres datasource, migrator
+│   ├── discord/       # Discord notifications
+│   ├── embed/         # optional semantic search (pgvector + embeddings)
 │   ├── middleware/    # CORS, body limit, rate limit, logger, recovery, security
-│   ├── repo/          # repositórios, modelos, validação, seed
-│   ├── settings/      # settings do workspace, API keys, export/reset
-│   ├── sse/           # hub SSE, event store, WebSocket, presença
+│   ├── repo/          # repositories, models, validation, seed
+│   ├── settings/      # workspace settings, API keys, export/reset
+│   ├── spa/           # SPA fallback rule (serves index.html for app routes)
+│   ├── sse/           # SSE hub, event store, WebSocket, presence
 │   └── webhook/       # dispatch, retry, delivery logs
-└── migrations/        # 20 migrations SQL (+ .down) embutidas via go:embed
+└── migrations/        # 20 SQL migrations (+ .down) embedded via go:embed
 ```
 
-Observações:
+Notes:
 
-- `internal/repo` concentra persistência **e** regras de domínio (ex.:
-  `custom_fields.go`) **e** seed (`seed.go`, `seed_test_data.go`).
-- `server/cmd` é um único `package main` com o entrypoint e ~20 comandos de CLI.
-- A geração de `cards.key` vive em `internal/repo/card.go` (`nextKey`).
+- `internal/repo` mixes persistence, domain rules (e.g. `custom_fields.go`) and
+  seed data (`seed.go`, `seed_test_data.go`).
+- `server/cmd` is a single `package main` with the entrypoint and ~20 CLI
+  commands.
+- Card key generation lives in `internal/repo/card.go` (`nextKey`).
 
-## Banco de dados
+## Database
 
-Suporta **SQLite** (default de dev) e **PostgreSQL** (produção/semântica).
-As migrations são SQL portável, traduzidas em runtime para SQLite
+Supports **SQLite** (dev default) and **PostgreSQL** (production/semantic
+search). Migrations are portable SQL translated at runtime for SQLite
 (`internal/db/migrate.go`).
 
-Tabelas: `users`, `refresh_tokens`, `boards`, `cards`, `comments`, `webhooks`,
+Tables: `users`, `refresh_tokens`, `boards`, `cards`, `comments`, `webhooks`,
 `webhook_deliveries`, `invites`, `settings`, `api_keys`, `discord_integrations`,
 `board_events`, `card_images`, `schema_migrations`.
 
-Restrições relevantes para identidade de card:
+Card identity constraints (current state):
 
-- `cards.key` é **único globalmente** (`idx_cards_key`).
-- `boards.project_key` é o prefixo exibido nas keys; hoje **não** é único.
-- Não existe contador persistido: o próximo número é derivado das keys
-  existentes dentro do board.
+- `cards.key` is **globally unique** (`idx_cards_key`).
+- `boards.project_key` is the display prefix; it is **not** unique today.
+- There is no persisted counter: the next number is derived from the keys that
+  already exist in the board.
+
+The planned change (phase 3) is board-scoped identity: `UNIQUE (board_id, key)`
+and `UNIQUE (board_id, number)`, with `boards.card_seq` as the counter. See
+`AGENTS.md` for the full decision.
 
 ## Frontend (`web/`)
 
 ```
 web/
-├── index.html        # shell da SPA (contém muito script inline)
-├── login.html        # página de login separada
-├── src/              # módulos ES carregados por main.js em ordem de dependência
-│   ├── main.js       # entrypoint: importa os módulos e inicializa a SPA
-│   ├── kanban.js     # estado do board, render, drag&drop, detail, picker, hash router
-│   ├── settings.js   # todas as telas de settings
-│   ├── features.js   # filtros, busca, board switching, presença
+├── index.html        # SPA shell (still contains a lot of inline script)
+├── login.html        # separate login page
+├── src/              # ES modules imported by main.js in dependency order
+│   ├── main.js       # entrypoint: imports modules and boots the SPA
+│   ├── router.js     # pure route helpers (parse/build/navigate)
+│   ├── kanban.js     # board state, render, drag&drop, detail, picker, boot routes
+│   ├── settings.js   # every settings screen
+│   ├── features.js   # filters, search, board switching, presence
 │   ├── listview.js, subtasks.js, editor.js, dropdown.js
 │   ├── api.js, auth.js, boardstream.js, presence.js, notifications.js
 │   ├── boardthemes.js, a11y.js, plugins.js, login.js
-├── styles/           # 10 arquivos CSS (theme, board, detail, settings, ...)
-├── public/           # favicon, imagens
-├── vite.config.js    # build para web/dist
-└── package.json      # Vite (devDependency única)
+├── styles/           # 10 CSS files (theme, board, detail, settings, ...)
+├── public/           # favicon, images
+├── vite.config.js    # build output: web/dist
+└── package.json      # Vite (single devDependency)
 ```
 
-Características atuais:
+Current characteristics:
 
-- Módulos são carregados por **efeito colateral** (`import './x.js'`) e se
-  comunicam por `window.*` (centenas de ocorrências), não por imports explícitos.
-- `kanban.js` (~3.2k linhas) e `settings.js` (~3.1k linhas) concentram múltiplas
-  responsabilidades.
-- A navegação usa **path** (`/boards/...`, `/settings/...`) via History API.
-  URLs antigas com `?board=` ou hash são ignoradas (sem redirect).
+- Modules are loaded for their **side effects** (`import './x.js'`) and talk
+  through `window.*` (hundreds of occurrences), not explicit imports.
+- `kanban.js` (~3.2k lines) and `settings.js` (~3.1k lines) concentrate several
+  responsibilities.
+- Navigation uses **paths** (`/boards/...`, `/settings/...`) through the History
+  API. Legacy `?board=` and hash URLs are ignored (no redirect).
 
-## Testes
+## Tests
 
-| Tipo | Onde | Como rodar |
+| Type | Location | Command |
 |---|---|---|
-| Go unitário | colocalizado (`*_test.go`) | `go test ./...` |
-| Go integração | tags `integration` | `make test-pg` / `make test-sqlite` |
-| Frontend unitário | `tests/frontend/*.test.js` | `node --test tests/frontend/*.test.js` |
+| Go unit | colocated (`*_test.go`) | `go test ./...` |
+| Go integration | `integration` build tag | `make test-pg` / `make test-sqlite` |
+| Frontend unit (jsdom) | `tests/frontend/*.test.js` | `node --test tests/frontend/*.test.js` |
 | Frontend E2E (Playwright) | `tests/e2e/*.spec.js` | `make test-e2e` |
-| UI manual (agente/CDP) | `tests/*.md` | `tests/start-test-server.sh` + specs 01–11 |
+| Manual UI (agent/CDP) | `tests/*.md` | `tests/start-test-server.sh` + specs 01–11 |
 
-Dependências de teste do frontend (`jsdom`, `postcss`) ficam no `package.json`
-da **raiz**; as dependências do app ficam em `web/package.json`.
+Frontend test dependencies (`jsdom`, `postcss`, `@playwright/test`) live in the
+**root** `package.json`; application dependencies live in `web/package.json`.
 
-## Build, execução e deploy
+## Build, run and deploy
 
-- `make run` — build, migrate, seed, cria admin e sobe em `:8099` com SQLite em
-  `/tmp/lwts-e2e.db`.
-- `make dev` — hot reload com `air` (requer `air` instalado).
-- `make verify` — gate local usado antes de merge (build, vet, testes, build do
-  frontend).
-- `make test-e2e` — Playwright contra o servidor de teste descartável em `:8044`
-  (Chrome do sistema; `PW_HEADED=1` para ver o browser).
+- `make run` — build, migrate, seed, create admin and start on `:8099` with
+  SQLite at `/tmp/lwts-e2e.db`.
+- `make dev` — hot reload with `air` (requires `air` installed).
+- `make verify` — local pre-merge gate (build, vet, Go tests, frontend build).
+- `make test-e2e` — Playwright against the disposable test server on `:8044`
+  (system Chrome; `PW_HEADED=1` to watch it).
 - `make verify-full` — `verify` + E2E.
-- `Dockerfile` — estágio Vite + estágio Go + imagem Alpine; o build do frontend
-  vai para `/static`, servido pelo binário via `STATIC_DIR`.
-- `Dockerfile.lambda` / `tf/` — deploy serverless com Lambda Web Adapter.
-- `docs/` — landing page estática (GitHub Pages).
+- `Dockerfile` — Vite stage + Go stage + Alpine image; the frontend build is
+  copied to `/static` and served by the binary through `STATIC_DIR`.
+- `Dockerfile.lambda` / `tf/` — serverless deploy with Lambda Web Adapter.
+- `docs/` — static landing page (GitHub Pages).
 
-## Inconsistências conhecidas
+## Known inconsistencies
 
-1. O README citava `server/internal/api/`, que **não existe**.
-2. O README fala em "embed the frontend at build time", mas os assets são
-   servidos de `STATIC_DIR` (não há `go:embed` de `web/dist`).
-3. Existem duas formas de subir o servidor além do `make run`:
-   `scripts/start.sh` e `tests/start-test-server.sh`.
-4. `docs/` é o site de marketing, não documentação de desenvolvimento.
-5. Os workflows do fork ainda apontam para o registry e os runners do projeto
-   original.
+1. The README used to mention `server/internal/api/`, which **does not exist**
+   (fixed).
+2. The README says "embed the frontend at build time", but assets are served
+   from `STATIC_DIR` (there is no `go:embed` of `web/dist`).
+3. Besides `make run`, the server can be started by `scripts/start.sh` and
+   `tests/start-test-server.sh`.
+4. `docs/` is the marketing site, not developer documentation.
+5. Files over 500 lines are common; a file-size gate and a mechanical split are
+   planned.
