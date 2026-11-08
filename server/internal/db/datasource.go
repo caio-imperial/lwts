@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"errors"
 )
 
 // Datasource abstracts database operations for both Postgres and SQLite.
@@ -64,4 +64,4 @@ func WrapSQLRows(rows *sql.Rows) *Rows {
 }
 
 // ErrNoRows is returned when a query expects a single row but finds none.
-var ErrNoRows = fmt.Errorf("no rows in result set")
+var ErrNoRows = errors.New("no rows in result set")
