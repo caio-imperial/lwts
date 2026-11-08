@@ -77,8 +77,20 @@ POST /boards                       → 405/404
 
 ## API
 
-REST endpoints (`/api/v1/...`) **do not change** in this contract. UUID-based
-endpoints remain valid; phase 3 adds `slug`/`number` resolution.
+REST endpoints (`/api/v1/...`) **do not change** for UUID-based clients. Phase
+3 adds workspace-scoped read routes resolved by slug:
+
+```
+GET /api/v1/workspaces
+GET /api/v1/workspaces/<workspace>/boards
+GET /api/v1/workspaces/<workspace>/boards/<board>
+GET /api/v1/workspaces/<workspace>/boards/<board>/cards
+GET /api/v1/workspaces/<workspace>/boards/<board>/cards/<card>
+```
+
+`<workspace>` = slug (or UUID), `<board>` = slug inside the workspace (or
+UUID), `<card>` = per-board number (or key or UUID). Unknown refs return 404.
+Legacy `/api/v1/boards/{id}` endpoints remain valid for compatibility.
 
 ## Acceptance criteria (phase 2b)
 
