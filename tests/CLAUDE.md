@@ -10,8 +10,6 @@ The test server runs on **port 8044** with a SQLite database at `/tmp/lwts-test-
 - **Login**: `testowner@test.dev` / `testpass123`
 - The database is wiped and re-seeded each time the server starts.
 
-A `SessionStart` hook in `.claude/settings.json` automatically starts the test server when you enter this directory. If the hook fails, fix the Go build error before proceeding — do not test against production.
-
 ## Running Tests
 
 1. The test server should already be running (started by the hook). Verify: `curl -sf http://localhost:8044/healthz`

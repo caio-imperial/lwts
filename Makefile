@@ -1,5 +1,4 @@
-.PHONY: dev build test test-frontend test-e2e verify check-size migrate seed lint lint-install fmt docker-up docker-down test-db test-db-down run stop reset clean \
-	push setup-buildx
+.PHONY: dev build test test-frontend test-e2e verify check-size migrate seed lint lint-install fmt docker-up docker-down test-db test-db-down run stop reset clean
 
 PORT ?= 8099
 DB ?= sqlite:///tmp/lwts-e2e.db
@@ -13,15 +12,11 @@ GOLANGCI_LINT ?= $(CURDIR)/bin/golangci-lint
 
 # Docker
 APP_NAME := lwts
-REGISTRY := docker.io/lwts
-IMAGE_NAME := $(REGISTRY)/$(APP_NAME)
 # Source build metadata
 SETTINGS := $(shell bash -c 'source settings.sh && echo "$$VERSION|$$COMMIT|$$DATE"')
 VERSION := $(word 1,$(subst |, ,$(SETTINGS)))
 BUILD_COMMIT := $(word 2,$(subst |, ,$(SETTINGS)))
 BUILD_DATE := $(word 3,$(subst |, ,$(SETTINGS)))
-PLATFORMS := linux/amd64,linux/arm64
-BUILDER_NAME := $(APP_NAME)-multiarch-builder
 
 export DB_URL = $(DB)
 export PORT
@@ -148,21 +143,3 @@ lint-install:
 fmt:
 	@test -x $(GOLANGCI_LINT) || { echo "golangci-lint $(GOLANGCI_LINT_VERSION) not installed: run 'make lint-install'"; exit 1; }
 	@$(GOLANGCI_LINT) fmt ./...
-
-# ── Docker (multi-arch) ─────────────────────────────────────
-
-setup-buildx:
-	@docker buildx inspect $(BUILDER_NAME) >/dev/null 2>&1 || \
-		docker buildx create --name $(BUILDER_NAME) --platform $(PLATFORMS) --use
-	@docker buildx inspect --bootstrap $(BUILDER_NAME)
-
-push: setup-buildx
-	docker buildx build \
-		--platform $(PLATFORMS) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(BUILD_COMMIT) \
-		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		--tag $(IMAGE_NAME):$(VERSION) \
-		--tag $(IMAGE_NAME):latest \
-		--push \
-		.

@@ -49,7 +49,7 @@
 - **API keys** — generate keys for CI/CD and automation workflows
 - **Import / Export** — full data portability
 - **Dual database support** — SQLite for single-node, PostgreSQL for production
-- **Single binary** — embed the frontend at build time, deploy one file
+- **Single binary** — one Go binary serves the API and the built frontend from `STATIC_DIR`
 - **Multi-arch Docker** — `linux/amd64` and `linux/arm64` images
 
 ## Quick Start
