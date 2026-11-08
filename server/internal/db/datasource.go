@@ -41,11 +41,11 @@ func (r *Row) Scan(dest ...any) error {
 
 // Rows wraps a multi-row result set.
 type Rows struct {
-	columns  func() ([]string, error)
-	next     func() bool
-	scanFunc func(dest ...any) error
+	columns   func() ([]string, error)
+	next      func() bool
+	scanFunc  func(dest ...any) error
 	closeFunc func() error
-	errFunc  func() error
+	errFunc   func() error
 }
 
 func NewRows(columns func() ([]string, error), next func() bool, scan func(dest ...any) error, close func() error, err func() error) *Rows {
@@ -54,9 +54,9 @@ func NewRows(columns func() ([]string, error), next func() bool, scan func(dest 
 
 func (r *Rows) Columns() ([]string, error) { return r.columns() }
 func (r *Rows) Next() bool                 { return r.next() }
-func (r *Rows) Scan(dest ...any) error      { return r.scanFunc(dest...) }
-func (r *Rows) Close() error                { return r.closeFunc() }
-func (r *Rows) Err() error                  { return r.errFunc() }
+func (r *Rows) Scan(dest ...any) error     { return r.scanFunc(dest...) }
+func (r *Rows) Close() error               { return r.closeFunc() }
+func (r *Rows) Err() error                 { return r.errFunc() }
 
 // WrapSQLRows wraps a *sql.Rows into our Rows type.
 func WrapSQLRows(rows *sql.Rows) *Rows {

@@ -96,7 +96,7 @@ func SeedTestData(ctx context.Context, ds db.Datasource, ownerID string) error {
 
 		{Column: "backlog", Title: "Card with nothing — no points, no date, no assignee, no tag",
 			Priority: "medium",
-			Desc: "Absolutely bare minimum card. Same height as the card above."},
+			Desc:     "Absolutely bare minimum card. Same height as the card above."},
 
 		{Column: "todo", Title: "Only has a due date", Priority: "medium", DueDate: yesterday,
 			Desc: "Just a due date, nothing else. Overdue — should show red."},
@@ -106,7 +106,7 @@ func SeedTestData(ctx context.Context, ds db.Datasource, ownerID string) error {
 
 		{Column: "todo", Title: "Only has an assignee", Priority: "medium",
 			Assignee: longNameID,
-			Desc: "Just an assignee with a very long name."},
+			Desc:     "Just an assignee with a very long name."},
 
 		// ── PRIORITY ICON + KEY + DATE in one row ──
 		{Column: "in-progress", Title: "All metadata icons in one row", Tag: "orange", Priority: "highest", Points: 55, DueDate: today,
@@ -124,7 +124,7 @@ func SeedTestData(ctx context.Context, ds db.Datasource, ownerID string) error {
 
 		{Column: "done", Title: "Completed card with nothing",
 			Priority: "medium",
-			Desc: "Bare done card."},
+			Desc:     "Bare done card."},
 
 		// ── VOLUME: Many cards in one column to test scroll ──
 		{Column: "backlog", Title: "Backlog filler 1 — padding card for scroll testing", Tag: "blue", Priority: "low", Points: 1},

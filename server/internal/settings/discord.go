@@ -172,7 +172,7 @@ func (h *Handler) TestDiscord(w http.ResponseWriter, r *http.Request) {
 		"content": "LWTS Kanban connected successfully! Board notifications will appear here.",
 	})
 
-	req, _ := http.NewRequestWithContext(r.Context(), "POST",
+	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost,
 		fmt.Sprintf("https://discord.com/api/v10/channels/%s/messages", cfg.ChannelID),
 		bytes.NewReader(msgBody))
 	req.Header.Set("Authorization", "Bot "+cfg.BotToken)
@@ -197,7 +197,7 @@ func (h *Handler) TestDiscord(w http.ResponseWriter, r *http.Request) {
 		if discordErr.Message != "" {
 			msg = discordErr.Message
 		}
-		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 			msg = "Bot token is invalid or the bot doesn't have permission to post in this channel"
 		}
 		if discordErr.Code == 10003 {

@@ -429,7 +429,7 @@ func (n *Notifier) send(cfg config, embeds []embed) {
 	msg := discordMessage{Embeds: embeds}
 	body, _ := json.Marshal(msg)
 
-	req, _ := http.NewRequest("POST",
+	req, _ := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("https://discord.com/api/v10/channels/%s/messages", cfg.ChannelID),
 		bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bot "+cfg.BotToken)

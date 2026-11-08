@@ -26,11 +26,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW, adminMW func(http.H
 
 // StatusResponse is the public-facing health check for the feature.
 type StatusResponse struct {
-	Configured     bool             `json:"configured"`      // EMBEDDING_API_URL is set
-	PgvectorReady  bool             `json:"pgvector_ready"`  // schema provisioned
-	Available      bool             `json:"available"`       // both above are true
-	Model          string           `json:"model"`           // configured embedding model id
-	Dim            int              `json:"dim"`             // vector dimension
+	Configured     bool             `json:"configured"`       // EMBEDDING_API_URL is set
+	PgvectorReady  bool             `json:"pgvector_ready"`   // schema provisioned
+	Available      bool             `json:"available"`        // both above are true
+	Model          string           `json:"model"`            // configured embedding model id
+	Dim            int              `json:"dim"`              // vector dimension
 	CardsWithEmbed int              `json:"cards_with_embed"` // count of embedded cards
 	CardsTotal     int              `json:"cards_total"`      // total card count
 	Backfill       BackfillProgress `json:"backfill"`         // last/current backfill state

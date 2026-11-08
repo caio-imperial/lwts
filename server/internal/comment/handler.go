@@ -23,7 +23,7 @@ func NewHandler(comments *repo.CommentRepository, cards *repo.CardRepository, hu
 }
 
 func (h *Handler) SetBoards(b *repo.BoardRepository) { h.boards = b }
-func (h *Handler) SetDiscord(d *discord.Notifier)     { h.discord = d }
+func (h *Handler) SetDiscord(d *discord.Notifier)    { h.discord = d }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler, memberMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/v1/cards/{cardId}/comments", memberMW(http.HandlerFunc(h.Create)))

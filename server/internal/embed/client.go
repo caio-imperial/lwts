@@ -82,7 +82,7 @@ func (c *Client) Embed(ctx context.Context, inputs []string) ([][]float32, error
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/embeddings", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/embeddings", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

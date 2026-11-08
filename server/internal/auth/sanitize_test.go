@@ -59,12 +59,12 @@ func TestValidatePassword(t *testing.T) {
 		err   bool
 	}{
 		{"Password1", false},
-		{"short1", false},          // ValidatePassword only rejects empty
-		{"abcdefgh", false},        // ValidatePassword only rejects empty
-		{"12345678", false},        // ValidatePassword only rejects empty
+		{"short1", false},                 // ValidatePassword only rejects empty
+		{"abcdefgh", false},               // ValidatePassword only rejects empty
+		{"12345678", false},               // ValidatePassword only rejects empty
 		{strings.Repeat("a", 129), false}, // ValidatePassword only rejects empty
 		{"ValidPass1", false},
-		{"", true},                 // empty password is rejected
+		{"", true}, // empty password is rejected
 	}
 	for _, tt := range tests {
 		err := ValidatePassword(tt.input)

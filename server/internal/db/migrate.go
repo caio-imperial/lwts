@@ -14,9 +14,9 @@ var migrationFileRe = regexp.MustCompile(`^(\d+)_.+\.up\.sql$`)
 
 // MigrationEntry represents a single migration file.
 type MigrationEntry struct {
-	Version  int
-	Name     string
-	SQL      string
+	Version int
+	Name    string
+	SQL     string
 }
 
 // Migrate runs all pending .up.sql migrations from the given filesystem.
