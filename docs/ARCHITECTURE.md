@@ -40,7 +40,8 @@ server/
 │   ├── settings/      # workspace settings, API keys, export/reset
 │   ├── spa/           # SPA fallback rule (serves index.html for app routes)
 │   ├── sse/           # SSE hub, event store, WebSocket, presence
-│   └── webhook/       # dispatch, retry, delivery logs
+│   ├── webhook/       # dispatch, retry, delivery logs
+│   └── workspace/     # workspace-scoped read routes (workspace → board → card)
 └── migrations/        # 20 SQL migrations (+ .down) embedded via go:embed
 ```
 

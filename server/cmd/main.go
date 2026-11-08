@@ -29,6 +29,7 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/spa"
 	"github.com/oceanplexian/lwts/server/internal/sse"
 	webhookhandler "github.com/oceanplexian/lwts/server/internal/webhook"
+	workspacehandler "github.com/oceanplexian/lwts/server/internal/workspace"
 	"github.com/oceanplexian/lwts/server/migrations"
 )
 
@@ -221,6 +222,7 @@ func main() {
 
 	// Repositories
 	userRepo := repo.NewUserRepository(ds)
+	workspaceRepo := repo.NewWorkspaceRepository(ds)
 	boardRepo := repo.NewBoardRepository(ds)
 	cardRepo := repo.NewCardRepository(ds)
 	commentRepo := repo.NewCommentRepository(ds)
@@ -249,6 +251,10 @@ func main() {
 	// Board routes
 	bh := boardhandler.NewHandler(boardRepo, cardRepo, commentRepo, sseHub)
 	bh.RegisterRoutes(mux, authMW)
+
+	// Workspace-scoped routes (workspace -> board -> card).
+	wsHandler := workspacehandler.NewHandler(workspaceRepo, boardRepo, cardRepo)
+	wsHandler.RegisterRoutes(mux, authMW)
 
 	// Card routes
 	ch := cardhandler.NewHandler(cardRepo, boardRepo, commentRepo, sseHub)

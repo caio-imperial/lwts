@@ -21,15 +21,20 @@ func NewBoardRepository(ds db.Datasource) *BoardRepository {
 }
 
 func (r *BoardRepository) Create(ctx context.Context, name, projectKey, ownerID string) (Board, error) {
+	workspaceID, err := r.defaultWorkspaceID(ctx)
+	if err != nil {
+		return Board{}, err
+	}
+	return r.CreateInWorkspace(ctx, workspaceID, name, projectKey, ownerID)
+}
+
+// CreateInWorkspace creates a board inside the given workspace.
+func (r *BoardRepository) CreateInWorkspace(ctx context.Context, workspaceID, name, projectKey, ownerID string) (Board, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC()
 	defaultCols := `[{"id":"backlog","label":"Backlog","color":"#8c8c8c","type":"start"},{"id":"todo","label":"To Do","color":"#579DFF","type":"active"},{"id":"in-progress","label":"In Progress","color":"#fb8c00","type":"active"},{"id":"done","label":"Done","color":"#4ade80","type":"done"},{"id":"wont-do","label":"Won't Do","color":"#94a3b8","type":"done"}]`
 	defaultSettings := `{}`
 
-	workspaceID, err := r.defaultWorkspaceID(ctx)
-	if err != nil {
-		return Board{}, err
-	}
 	boardSlug, err := r.uniqueBoardSlug(ctx, workspaceID, slug.Normalize(name), id)
 	if err != nil {
 		return Board{}, err
@@ -99,6 +104,53 @@ func (r *BoardRepository) List(ctx context.Context) ([]Board, error) {
 		boards = append(boards, b)
 	}
 	return boards, rows.Err()
+}
+
+// ListByWorkspace returns the boards of a workspace ordered by creation time.
+func (r *BoardRepository) ListByWorkspace(ctx context.Context, workspaceID string) ([]Board, error) {
+	if !isUUID(workspaceID) {
+		return []Board{}, nil
+	}
+	rows, err := r.ds.Query(ctx,
+		`SELECT id, name, project_key, owner_id, columns, settings,
+		        COALESCE(workspace_id, ''), COALESCE(slug, ''), card_seq,
+		        created_at, updated_at
+		 FROM boards WHERE workspace_id = $1 ORDER BY created_at, id`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var boards []Board
+	for rows.Next() {
+		var b Board
+		if err := rows.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings,
+			&b.WorkspaceID, &b.Slug, &b.CardSeq, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		boards = append(boards, b)
+	}
+	return boards, rows.Err()
+}
+
+// GetBySlug returns a board by its alias inside a workspace.
+func (r *BoardRepository) GetBySlug(ctx context.Context, workspaceID, slugValue string) (Board, error) {
+	if !isUUID(workspaceID) || slugValue == "" {
+		return Board{}, ErrNotFound
+	}
+	row := r.ds.QueryRow(ctx,
+		`SELECT id, name, project_key, owner_id, columns, settings,
+		        COALESCE(workspace_id, ''), COALESCE(slug, ''), card_seq,
+		        created_at, updated_at
+		 FROM boards WHERE workspace_id = $1 AND slug = $2`, workspaceID, slugValue)
+
+	var b Board
+	err := row.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings,
+		&b.WorkspaceID, &b.Slug, &b.CardSeq, &b.CreatedAt, &b.UpdatedAt)
+	if err == db.ErrNoRows {
+		return Board{}, ErrNotFound
+	}
+	return b, err
 }
 
 type BoardUpdate struct {
