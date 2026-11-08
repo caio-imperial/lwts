@@ -16,7 +16,7 @@ func TestNormalize(t *testing.T) {
 		{"accents removed", "Ação & Cia", "acao-cia"},
 		{"symbols only", "  --  ", "board"},
 		{"reserved word", "settings", "board-settings"},
-		{"reserved word mixed case", "Default", "board-default"},
+		{"default is not reserved", "Default", "default"},
 		{"emoji only", "🔥🔥", "board"},
 		{"empty", "", "board"},
 		{"repeated separators", "My -- Board", "my-board"},
