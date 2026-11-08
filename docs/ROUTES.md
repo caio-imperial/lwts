@@ -84,15 +84,19 @@ REST endpoints (`/api/v1/...`) **do not change** for UUID-based clients. Phase
 3 adds workspace-scoped read routes resolved by slug:
 
 ```
-GET /api/v1/workspaces
-GET /api/v1/workspaces/<workspace>/boards
-GET /api/v1/workspaces/<workspace>/boards/<board>
-GET /api/v1/workspaces/<workspace>/boards/<board>/cards
-GET /api/v1/workspaces/<workspace>/boards/<board>/cards/<card>
+GET   /api/v1/workspaces
+POST  /api/v1/workspaces                      # {name}
+PATCH /api/v1/workspaces/<workspace>          # {name} (renames name + slug)
+GET   /api/v1/workspaces/<workspace>/boards
+POST  /api/v1/workspaces/<workspace>/boards   # {name, project_key}
+GET   /api/v1/workspaces/<workspace>/boards/<board>
+GET   /api/v1/workspaces/<workspace>/boards/<board>/cards
+GET   /api/v1/workspaces/<workspace>/boards/<board>/cards/<card>
 ```
 
 `<workspace>` = slug (or UUID), `<board>` = slug inside the workspace (or
 UUID), `<card>` = per-board number (or key or UUID). Unknown refs return 404.
+Renaming a workspace recomputes its slug; the previous slug stops resolving.
 Legacy `/api/v1/boards/{id}` endpoints remain valid for compatibility.
 
 ## Acceptance criteria (phase 3c-2)
