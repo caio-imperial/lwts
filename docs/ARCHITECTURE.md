@@ -67,6 +67,8 @@ Card identity (phase 3a implemented):
 
 - `workspaces` is the platform-wide scope (unique `slug`; one `Default` workspace
   is created by the migration and existing boards are attached to it).
+  Workspaces can be created and renamed through the API; renaming recomputes the
+  slug (the previous slug returns 404).
 - `boards.workspace_id` and `boards.slug` (unique per workspace) identify a
   board; the alias is the normalized board name and changes when the board is
   renamed.
@@ -79,8 +81,8 @@ Card identity (phase 3a implemented):
 - `GET /api/v1/cards/{key}` returns 409 `ambiguous_key` when the same key
   exists in more than one board; UUID lookups still work.
 
-Still pending (phase 3c): workspace-scoped API routes, `/<workspace>/<board>`
-URLs and the workspace selector UI.
+Still pending (phase 4+): profile vs workspace settings split, and workspace
+membership/roles. The workspace switcher UI ships in phase 3d-2.
 
 ## Frontend (`web/`)
 
@@ -154,3 +156,7 @@ Frontend test dependencies (`jsdom`, `postcss`, `@playwright/test`) live in the
 4. `docs/` is the marketing site, not developer documentation.
 5. Files over 500 lines are common; a file-size gate and a mechanical split are
    planned.
+6. Backup/restore does not include the `workspaces` table; restored boards are
+   attached to the default workspace by the identity backfill.
+7. Settings are still global: Profile (user) and workspace settings are not
+   separated yet.
