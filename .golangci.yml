@@ -18,10 +18,6 @@ linters:
     - usestdlibvars
     - whitespace
   settings:
-    gocritic:
-      # server/cmd exits after deferring ds.Close(); fixed in the next commit.
-      disabled-checks:
-        - exitAfterDefer
     nolintlint:
       require-explanation: true
       require-specific: true
