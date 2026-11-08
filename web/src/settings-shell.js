@@ -152,6 +152,13 @@ function showSettingsSection(id, _fromRoute) {
     el.classList.toggle('active', el.id === 'settings-' + id);
   });
 
+  // Svelte island spike: Appearance is rendered by a Svelte component.
+  if (id === 'appearance') {
+    if (typeof window.mountAppearanceIsland === 'function') window.mountAppearanceIsland();
+  } else if (typeof window.unmountAppearanceIsland === 'function') {
+    window.unmountAppearanceIsland();
+  }
+
   // Section switches replace the current history entry (no new back-step).
   if (!_fromRoute) {
     window.Router.navigate({ name: 'settings', section: id }, { replace: true });
@@ -270,9 +277,11 @@ function _buildSettingsPickerMenu() {
 function closeSettings(_fromRoute) {
   const transitionGen = ++_settingsTransitionGen;
 
-  // If settings isn't open, nothing to do
+  // If settings isn't open, nothing is mounted
   const _sp = document.getElementById('settings-page');
   if (_sp && !_sp.classList.contains('active')) return;
+
+  if (typeof window.unmountAppearanceIsland === 'function') window.unmountAppearanceIsland();
 
   // Return to the last concrete board (replace, so back doesn't reopen settings).
   if (!_fromRoute && window.currentWorkspace) {

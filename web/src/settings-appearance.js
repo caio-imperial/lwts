@@ -141,6 +141,7 @@ function _renderThemeOptions(selectedThemeId) {
 }
 
 function _setSelectedAppearanceTheme(themeId) {
+  if (window.isAppearanceIslandActive && window.isAppearanceIslandActive()) return;
   const resolvedThemeId = _resolveThemeId(themeId);
   document.querySelectorAll('.appearance-theme-option').forEach(el => {
     const isSelected = el.dataset.themeId === resolvedThemeId;
@@ -150,6 +151,7 @@ function _setSelectedAppearanceTheme(themeId) {
 }
 
 function _renderAppearanceThemePicker(selectedThemeId) {
+  if (window.isAppearanceIslandActive && window.isAppearanceIslandActive()) return;
   const container = document.getElementById('settings-theme-grid');
   if (!container) return;
   container.innerHTML = _renderThemeOptions(selectedThemeId);

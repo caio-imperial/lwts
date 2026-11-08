@@ -126,6 +126,7 @@ function applyRegistrationSetting(allowed) {
 
 function populateSettingsForm(category, data) {
   document.querySelectorAll('[data-setting^="' + category + '."]').forEach(el => {
+    if (el.closest('[data-island]')) return;
     const key = el.dataset.setting.split('.')[1];
     if (!(key in data)) return;
     if (el.type === 'checkbox') {
@@ -227,6 +228,7 @@ function _onSettingsDropdownChange(category, key, value) {
 
 function initSettingsBindings() {
   document.querySelectorAll('[data-setting]').forEach(el => {
+    if (el.closest('[data-island]')) return;
     const [category, key] = el.dataset.setting.split('.');
     const event = el.type === 'checkbox' ? 'change' : 'input';
     if (el.type === 'range') window._updateSettingsRangeFill(el);
