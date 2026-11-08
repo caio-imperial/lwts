@@ -8,6 +8,8 @@ vendor/
 web/node_modules/
 web/dist/
 node_modules/
+test-results/
+playwright-report/
 __pycache__/
 .DS_Store
 .vite/

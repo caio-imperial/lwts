@@ -1392,8 +1392,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initDueDateField();
   injectDueDateChips();
 
-  // Try to load boards from API (falls back gracefully)
-  loadBoardList();
+  // Try to load boards from API (falls back gracefully). Only after auth:
+  // the login screen should not fire an unauthenticated /api/v1/boards.
+  if (window.Auth && window.Auth.isAuthenticated()) loadBoardList();
 });
 
 // ═══════════════════════════════════════════════════════════════

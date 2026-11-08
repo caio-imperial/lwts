@@ -102,6 +102,7 @@ Características atuais:
 | Go unitário | colocalizado (`*_test.go`) | `go test ./...` |
 | Go integração | tags `integration` | `make test-pg` / `make test-sqlite` |
 | Frontend unitário | `tests/frontend/*.test.js` | `node --test tests/frontend/*.test.js` |
+| Frontend E2E (Playwright) | `tests/e2e/*.spec.js` | `make test-e2e` |
 | UI manual (agente/CDP) | `tests/*.md` | `tests/start-test-server.sh` + specs 01–11 |
 
 Dependências de teste do frontend (`jsdom`, `postcss`) ficam no `package.json`
@@ -114,6 +115,9 @@ da **raiz**; as dependências do app ficam em `web/package.json`.
 - `make dev` — hot reload com `air` (requer `air` instalado).
 - `make verify` — gate local usado antes de merge (build, vet, testes, build do
   frontend).
+- `make test-e2e` — Playwright contra o servidor de teste descartável em `:8044`
+  (Chrome do sistema; `PW_HEADED=1` para ver o browser).
+- `make verify-full` — `verify` + E2E.
 - `Dockerfile` — estágio Vite + estágio Go + imagem Alpine; o build do frontend
   vai para `/static`, servido pelo binário via `STATIC_DIR`.
 - `Dockerfile.lambda` / `tf/` — deploy serverless com Lambda Web Adapter.

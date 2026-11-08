@@ -3,8 +3,9 @@
 # Used by Claude hooks before running UI tests.
 #
 # Usage:
-#   ./tests/start-test-server.sh        # start (blocks until healthy)
-#   ./tests/start-test-server.sh stop    # stop running instance
+#   ./tests/start-test-server.sh             # start in background (blocks until healthy)
+#   ./tests/start-test-server.sh --foreground # setup then exec the binary (Playwright)
+#   ./tests/start-test-server.sh stop         # stop running instance
 
 set -euo pipefail
 
@@ -42,6 +43,11 @@ if [ "${1:-}" = "stop" ]; then
     exit 0
 fi
 
+FOREGROUND=0
+if [ "${1:-}" = "--foreground" ] || [ "${1:-}" = "foreground" ]; then
+    FOREGROUND=1
+fi
+
 # If already running and healthy, exit early
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     if curl -sf "http://localhost:${PORT}/healthz" >/dev/null 2>&1; then
@@ -62,6 +68,13 @@ go build -o "$BINARY" ./server/cmd 2>&1
 # Migrate + seed
 "$BINARY" migrate 2>&1
 "$BINARY" seed-test 2>&1
+
+if [ "$FOREGROUND" = "1" ]; then
+    # Playwright's webServer owns the process: keep it in the foreground so it
+    # does not see the script exit before the URL is polled.
+    echo "test server starting on http://localhost:${PORT} (foreground)"
+    exec "$BINARY"
+fi
 
 # Start server in background (direct binary, not go run)
 "$BINARY" > "$LOG_FILE" 2>&1 &

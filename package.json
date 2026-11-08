@@ -1,8 +1,13 @@
 {
   "name": "lwts-tests",
   "private": true,
-  "description": "Dev/test deps used by tests/frontend (jsdom + postcss for CSS contrast tests)",
+  "description": "Dev/test deps used by tests/frontend (jsdom + postcss) and tests/e2e (Playwright)",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "jsdom": "^25.0.0",
     "postcss": "^8.5.14"
   }

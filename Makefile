@@ -1,4 +1,4 @@
-.PHONY: dev build test test-frontend verify migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
+.PHONY: dev build test test-frontend test-e2e verify migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
 	push setup-buildx demo-db lambda-build lambda-push tf-init tf-apply tf-destroy
 
 PORT ?= 8099
@@ -88,6 +88,14 @@ verify: build
 	node --test tests/frontend/*.test.js
 	@[ -d web/node_modules ] || npm --prefix web ci --silent
 	npm --prefix web run build
+
+# End-to-end (Playwright). Starts the disposable test server on :8044.
+test-e2e:
+	@[ -d node_modules ] || npm ci --silent
+	npx playwright test
+
+# Full pre-merge gate: static/unit checks plus browser E2E.
+verify-full: verify test-e2e
 
 test-all: test-pg test-sqlite test-frontend
 
