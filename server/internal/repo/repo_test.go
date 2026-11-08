@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/oceanplexian/lwts/server/migrations"
 )
@@ -347,14 +348,16 @@ func TestCardClearDoneBulkMovesLargeSet(t *testing.T) {
 	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
 	board, _ := boards.Create(ctx, "Board", "LWTS", owner.ID)
 
-	if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'cleared', 'Already cleared', 'LWTS-0', 0)`, "cleared-0", board.ID); err != nil {
+	clearedID := uuid.NewString()
+	keepID := uuid.NewString()
+	if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'cleared', 'Already cleared', 'LWTS-0', 0)`, clearedID, board.ID); err != nil {
 		t.Fatalf("seed cleared card: %v", err)
 	}
-	if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'todo', 'Keep me', 'LWTS-keep', 0)`, "keep-0", board.ID); err != nil {
+	if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'todo', 'Keep me', 'LWTS-keep', 0)`, keepID, board.ID); err != nil {
 		t.Fatalf("seed todo card: %v", err)
 	}
 	for i := 0; i < 1005; i++ {
-		id := fmt.Sprintf("done-%04d", i)
+		id := uuid.NewString()
 		key := fmt.Sprintf("LWTS-%04d", i+1)
 		if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'done', $3, $4, $5)`, id, board.ID, "Done card", key, i); err != nil {
 			t.Fatalf("seed done card %d: %v", i, err)
@@ -383,7 +386,7 @@ func TestCardClearDoneBulkMovesLargeSet(t *testing.T) {
 		t.Fatalf("unique positions = %d, want 1005", len(seenPositions))
 	}
 
-	keep, err := cards.GetByID(ctx, "keep-0")
+	keep, err := cards.GetByID(ctx, keepID)
 	if err != nil {
 		t.Fatalf("get keep card: %v", err)
 	}

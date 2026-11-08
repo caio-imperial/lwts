@@ -34,25 +34,32 @@ const maxRetries = 5
 // isRetryable returns true for database errors that resolve on retry:
 //   - Postgres 40P01: deadlock_detected
 //   - Postgres 40001: serialization_failure
-//   - Postgres 23505: unique_violation (concurrent key generation)
+//   - Postgres 23505 on idx_cards_key: concurrent key generation
 //   - SQLite SQLITE_BUSY: database is locked (concurrent writes)
+//   - SQLite unique violation on cards.key: concurrent key generation
+//
+// Any other unique violation is an invariant bug and must surface instead of
+// being retried and hidden behind a generic 500.
 func isRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
-		case "40P01", "40001", "23505":
+		case "40P01", "40001":
 			return true
+		case "23505":
+			return pgErr.ConstraintName == "idx_cards_key"
 		}
 	}
-	// SQLite busy/locked errors
+
 	msg := err.Error()
 	if strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY") {
 		return true
 	}
-	return false
+	return strings.Contains(msg, "UNIQUE constraint failed: cards.key")
 }
 
 // nextKey generates the next card key. Must be called inside a transaction
@@ -207,6 +214,9 @@ func scanCard(scanner cardScanner) (Card, error) {
 }
 
 func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
+	if !isUUID(id) {
+		return Card{}, ErrNotFound
+	}
 	row := r.ds.QueryRow(ctx,
 		`SELECT `+cardSelectColumns+`
 		 FROM cards WHERE id = $1`, id)
@@ -233,6 +243,9 @@ func (r *CardRepository) GetByKey(ctx context.Context, key string) (Card, error)
 }
 
 func (r *CardRepository) ListByBoard(ctx context.Context, boardID string) ([]Card, error) {
+	if !isUUID(boardID) {
+		return []Card{}, nil
+	}
 	rows, err := r.ds.Query(ctx,
 		`SELECT `+cardSelectColumns+`
 		 FROM cards WHERE board_id = $1
