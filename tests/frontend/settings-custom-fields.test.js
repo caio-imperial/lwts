@@ -5,7 +5,12 @@ const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
 const ROOT = path.join(__dirname, '..', '..');
-const settingsSrc = fs.readFileSync(path.join(ROOT, 'web', 'src', 'settings.js'), 'utf-8');
+const SRC_DIR = path.join(ROOT, 'web', 'src');
+const aggregatorSrc = fs.readFileSync(path.join(SRC_DIR, 'settings.js'), 'utf-8');
+const moduleFiles = [...aggregatorSrc.matchAll(/import\s+'\.\/([^']+)';/g)].map(m => m[1]);
+const settingsSrc = moduleFiles
+  .map(file => fs.readFileSync(path.join(SRC_DIR, file), 'utf-8'))
+  .join('\n');
 
 function loadSettingsModule() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="root"></div><div id="confirm-modal"><div id="confirm-modal-title"></div><div id="confirm-modal-message"></div><button id="confirm-modal-ok"></button></div></body></html>', {
