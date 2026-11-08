@@ -1,10 +1,10 @@
 name: Test & Lint
 
-# Fork: runs on every branch push (no pull requests are used) and can be
-# triggered manually. Uses GitHub-hosted runners instead of the upstream
-# self-hosted ARC runners.
+# Runs on main and can be triggered manually for any branch (no pull requests
+# are used in this repo). Uses GitHub-hosted runners.
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -71,9 +71,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.15.0
 
   frontend-test:
     name: Frontend Tests

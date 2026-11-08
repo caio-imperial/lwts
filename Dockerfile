@@ -24,9 +24,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM alpine:3.21
 LABEL org.opencontainers.image.title="LWTS" \
       org.opencontainers.image.description="Lightweight Task System — kanban board" \
-      org.opencontainers.image.url="https://github.com/oceanplexian/lwts" \
-      org.opencontainers.image.source="https://github.com/oceanplexian/lwts" \
-      org.opencontainers.image.vendor="oceanplexian" \
+      org.opencontainers.image.url="https://github.com/caio-imperial/lwts" \
+      org.opencontainers.image.source="https://github.com/caio-imperial/lwts" \
+      org.opencontainers.image.vendor="caio-imperial" \
       org.opencontainers.image.licenses="MIT"
 RUN apk add --no-cache su-exec && adduser -D -u 65532 lwts
 COPY --from=builder /lwts /lwts

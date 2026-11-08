@@ -11,17 +11,21 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/oceanplexian/lwts/actions/workflows/test-and-lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/test-and-lint.yml?style=flat-square&label=tests" alt="Tests"></a>
-  <a href="https://github.com/oceanplexian/lwts/actions/workflows/docker.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/docker.yml?branch=main&style=flat-square&label=docker" alt="Docker Build"></a>
+  <a href="https://github.com/caio-imperial/lwts/actions/workflows/test-and-lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/caio-imperial/lwts/test-and-lint.yml?style=flat-square&label=tests" alt="Tests"></a>
+  <a href="https://github.com/caio-imperial/lwts/actions/workflows/docker.yml"><img src="https://img.shields.io/github/actions/workflow/status/caio-imperial/lwts/docker.yml?branch=main&style=flat-square&label=docker" alt="Docker Build"></a>
   <img src="https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.25">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/oceanplexian/lwts?style=flat-square" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/caio-imperial/lwts?style=flat-square" alt="License"></a>
 </p>
 
 <p align="center">
-  <a href="https://ypy2jdydz5po7fyweuvykikjum0xoney.lambda-url.us-west-2.on.aws/">Live Demo</a> · <a href="#quick-start">Quick Start</a> · <a href="#api">API Docs</a> · <a href="https://github.com/oceanplexian/lwts/releases">Releases</a>
+  <a href="https://ypy2jdydz5po7fyweuvykikjum0xoney.lambda-url.us-west-2.on.aws/">Live Demo</a> · <a href="#quick-start">Quick Start</a> · <a href="#api">API Docs</a> · <a href="https://github.com/caio-imperial/lwts/releases">Releases</a>
 </p>
 
 ---
+
+<p align="center">
+  Based on the MIT-licensed <a href="https://github.com/oceanplexian/lwts">oceanplexian/lwts</a>.
+</p>
 
 <p align="center">
   <img src="docs/img/sc-2.png" alt="Kanban Board" width="32%" />
@@ -58,7 +62,7 @@
 
 ```bash
 # Clone and build
-git clone https://github.com/oceanplexian/lwts.git
+git clone https://github.com/caio-imperial/lwts.git
 cd lwts
 make build
 
@@ -74,13 +78,13 @@ Open `http://localhost:8080` — default login: `admin@admin.dev` / `admin`
 ### Docker
 
 ```bash
-docker pull oceanplexian/lwts:latest
+docker build -t lwts .
 
 docker run -p 8080:8080 \
   -e DB_URL="sqlite:///data/lwts.db" \
   -e JWT_SECRET=changeme \
   -v lwts-data:/data \
-  oceanplexian/lwts:latest
+  lwts
 ```
 
 ### Docker Compose
@@ -88,7 +92,7 @@ docker run -p 8080:8080 \
 ```yaml
 services:
   lwts:
-    image: oceanplexian/lwts:latest
+    build: .
     ports:
       - "8080:8080"
     environment:
