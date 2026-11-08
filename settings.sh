@@ -7,5 +7,5 @@ DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 DESC="Lightweight Task System — kanban board"
 LICENSE="MIT"
-SOURCE_URL="https://github.com/oceanplexian/lwts"
-VENDOR="oceanplexian"
+SOURCE_URL="https://github.com/caio-imperial/lwts"
+VENDOR="caio-imperial"
