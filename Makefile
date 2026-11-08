@@ -1,4 +1,4 @@
-.PHONY: dev build test test-frontend migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
+.PHONY: dev build test test-frontend verify migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
 	push setup-buildx demo-db lambda-build lambda-push tf-init tf-apply tf-destroy
 
 PORT ?= 8099
@@ -76,8 +76,18 @@ test-sqlite:
 	DB_URL="sqlite:///tmp/lwts-test.db" go test -v -count=1 -tags=integration ./...
 
 test-frontend:
-	@[ -d node_modules ] || npm install --silent
+	@[ -d node_modules ] || npm ci --silent
 	node --test tests/frontend/*.test.js
+
+# Local gate to run before merging a branch: everything that CI would check
+# locally, without external services.
+verify: build
+	go vet ./...
+	go test -count=1 ./...
+	@[ -d node_modules ] || npm ci --silent
+	node --test tests/frontend/*.test.js
+	@[ -d web/node_modules ] || npm --prefix web ci --silent
+	npm --prefix web run build
 
 test-all: test-pg test-sqlite test-frontend
 
