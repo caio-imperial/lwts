@@ -891,31 +891,44 @@ func truncate(s string, max int) string {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `LWTS Kanban Admin CLI
+	type entry struct{ cmd, desc string }
+	entries := []entry{
+		{"migrate", "Run database migrations"},
+		{"seed", "Seed demo board data (skips if boards exist)"},
+		{"reseed", "Wipe boards/cards/comments, reseed demo data"},
+		{},
+		{"users", "List all users"},
+		{"user-create <name> <email> <pw>", "Create a user (--role=X, default member)"},
+		{"user-delete <email>", "Delete a user"},
+		{"reset-password <email> <password>", "Reset a user's password"},
+		{},
+		{"boards", "List all boards"},
+		{"board-create <name> <key> <owner_email>", "Create a board"},
+		{"board-delete <id>", "Delete a board and its cards"},
+		{},
+		{"cards <board_id_or_name>", "List cards on a board"},
+		{"card-show <key_or_id>", "Show full card detail"},
+		{"card-delete <key_or_id>", "Delete a card"},
+		{},
+		{"stats", "Show system statistics"},
+		{"backup <output_path>", "Export DB to JSON"},
+		{"restore <input_path>", "Import from JSON backup"},
+		{"api-key <email> [name]", "Create an lwts_sk_ API key for a user"},
+		{},
+		{"seed-test", "Create the test owner and edge-case board (E2E fixtures)"},
+		{"help", "Show this help"},
+	}
 
-Usage: lwts <command> [args]
-
-Commands:
-  migrate                                  Run database migrations
-  seed                                     Seed demo data (if no users exist)
-  reseed                                   Wipe boards/cards/comments, reseed demo data
-
-  users                                    List all users
-  user-create <name> <email> <pw> [--role] Create a user
-  user-delete <email>                      Delete a user
-  reset-password <email> <password>        Reset a user's password
-
-  boards                                   List all boards
-  board-create <name> <key> <owner_email>  Create a board
-  board-delete <id>                        Delete a board and its cards
-
-  cards <board_id_or_name>                 List cards on a board
-  card-show <key_or_id>                    Show full card detail
-  card-delete <key_or_id>                  Delete a card
-
-  stats                                    Show system statistics
-  backup <output_path>                     Export DB to JSON
-  restore <input_path>                     Import from JSON backup
-  api-key <email>                          Generate 365-day JWT for API access
-`)
+	fmt.Fprintln(os.Stderr, "LWTS Kanban Admin CLI")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Usage: lwts <command> [args]")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Commands:")
+	for _, e := range entries {
+		if e.cmd == "" {
+			fmt.Fprintln(os.Stderr)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "  %-41s %s\n", e.cmd, e.desc)
+	}
 }
