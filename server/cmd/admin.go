@@ -545,18 +545,33 @@ func runReseed() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// Wipe in FK order
-	_, _ = ds.Exec(ctx, "DELETE FROM comments")
-	_, _ = ds.Exec(ctx, "DELETE FROM cards")
-	_, _ = ds.Exec(ctx, "DELETE FROM boards")
-	fmt.Println("wiped all boards, cards, comments")
-
-	// Get first user
+	// Find the owner before touching anything, so a failed lookup cannot
+	// leave the database wiped.
 	users := repo.NewUserRepository(ds)
 	list, err := users.List(ctx)
-	if err != nil || len(list) == 0 {
+	if err != nil {
+		return fmt.Errorf("list users: %w", err)
+	}
+	if len(list) == 0 {
 		return errors.New("no users exist — create a user first")
 	}
+
+	// Wipe in FK order inside one transaction: a partial wipe would let the
+	// seed below duplicate data instead of replacing it.
+	tx, err := ds.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	for _, table := range []string{"comments", "cards", "boards"} {
+		if _, err := tx.Exec(ctx, "DELETE FROM "+table); err != nil {
+			return fmt.Errorf("delete %s: %w", table, err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	fmt.Println("wiped all boards, cards, comments")
 
 	if err := repo.SeedDemo(ctx, ds, list[0].ID); err != nil {
 		return fmt.Errorf("seed: %w", err)
