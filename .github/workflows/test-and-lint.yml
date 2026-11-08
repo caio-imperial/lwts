@@ -99,3 +99,22 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      # Channel "chrome" uses the Google Chrome preinstalled on the runner.
+      # Fallback for other environments: npx playwright install --with-deps chromium
+      - run: npx playwright test
+        env:
+          PW_CHANNEL: chrome

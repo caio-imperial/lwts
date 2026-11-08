@@ -144,7 +144,7 @@ test('buildUrl/parseUrl: round-trip preserva refs e filtros', () => {
 // ── Sem suporte a URLs legadas ────────────────────────────────────────────
 
 test('URLs legadas não são mais interpretadas (hash/query ignorados)', () => {
-  // A decisão do fork é não manter redirects: hash e ?board= são ignorados.
+  // The fork does not keep legacy redirects: hash and ?board= are ignored.
   assert.equal(parseUrl('/?board=abc').name, 'root');
   assert.equal(parseUrl('/#settings/boards').name, 'root');
   assert.equal(parseUrl('/#MY-BOA-1').name, 'root');
