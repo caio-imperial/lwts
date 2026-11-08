@@ -1222,7 +1222,13 @@ function openCreateModal() {
     // Refresh board options in case boards changed
     const projectOpts = boardList.map(b => ({ value: b.id, label: b.name }));
     ddDetailProject.setOptions(projectOpts);
-    ddDetailProject.setValue(currentBoardId, true);
+    // In "All Boards" mode there is no concrete board to post to: default to
+    // the last concrete board (or the first board) so the card is created
+    // somewhere valid instead of POSTing to /boards/all/cards.
+    const defaultBoardId = currentBoardId === 'all'
+      ? (lastConcreteBoardId || (boardList[0] && boardList[0].id) || '')
+      : currentBoardId;
+    ddDetailProject.setValue(defaultBoardId, true);
   }
   // Show project row in create mode
   const projectRow = document.getElementById('detail-project-row');
@@ -1278,7 +1284,11 @@ function openCreateModal() {
 
 function _updateCreateBtnState() {
   const btn = document.getElementById('create-submit-btn');
-  if (btn) btn.disabled = !document.getElementById('detail-title').value.trim();
+  if (!btn) return;
+  const title = document.getElementById('detail-title').value.trim();
+  const project = ddDetailProject ? ddDetailProject.getValue() : currentBoardId;
+  const hasBoard = !!project && project !== 'all';
+  btn.disabled = !title || !hasBoard;
 }
 
 function closeCreateMode() {
@@ -1329,7 +1339,11 @@ function submitCreateFromDetail() {
   const pendingCommentTexts = _pendingComments.map(c => c.body || c.text);
 
   const targetBoardId = (ddDetailProject ? ddDetailProject.getValue() : null) || currentBoardId;
-  const isCurrentBoard = targetBoardId === currentBoardId;
+  if (!targetBoardId || targetBoardId === 'all') {
+    window.Toast.error('Select a board to create this card');
+    return;
+  }
+  const isCurrentBoard = currentBoardId !== 'all' && targetBoardId === currentBoardId;
 
   if (isCurrentBoard) {
     state[col] = state[col] || [];
@@ -1375,6 +1389,11 @@ function submitCreateFromDetail() {
       } else {
         const boardName = boardList.find(b => b.id === targetBoardId)?.name || targetBoardId;
         window.Toast.success('Card created on ' + boardName);
+        // In "All Boards" the new card belongs to another board: refresh the
+        // aggregated view so it becomes visible immediately.
+        if (window.currentBoardId === 'all' && typeof window.loadAllBoardCards === 'function') {
+          window.loadAllBoardCards();
+        }
       }
       if (window.Notifier && typeof window.Notifier.handleCardCreated === 'function') {
         window.Notifier.handleCardCreated(serverCard);
@@ -1434,6 +1453,7 @@ function initDetailDropdowns() {
         renderDetailCustomFields(v, _pendingCustomFields);
         refreshSidebarTexts();
         closeAllSidebarFields();
+        _updateCreateBtnState();
       }
     },
   });
