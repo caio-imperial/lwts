@@ -102,6 +102,11 @@ func Migrate(ctx context.Context, ds Datasource, migrations fs.FS) error {
 		}
 	}
 
+	// Idempotent data backfill for identity columns; still under the lock.
+	if err := backfillWorkspaces(ctx, ds); err != nil {
+		return fmt.Errorf("backfill workspaces: %w", err)
+	}
+
 	return nil
 }
 
