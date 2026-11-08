@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -138,11 +136,6 @@ func runServer() error {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("GET /api/v1/lambda-demo", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]bool{"lambda_demo": cfg.LambdaDemo})
-	})
-
 	// Header plugin manifest — advertised to the frontend so the plugin
 	// loader can <script>-load each entry. Public (no auth): the header
 	// plugin must render before login. See config.HeaderPlugins.
@@ -166,12 +159,6 @@ func runServer() error {
 		}
 	}
 
-	if cfg.LambdaDemo {
-		if err := prepareLambdaDemoDB(cfg); err != nil {
-			return fmt.Errorf("lambda demo database setup failed: %w", err)
-		}
-	}
-
 	// Database
 	ctx := context.Background()
 	ds, err := openDS(ctx)
@@ -179,28 +166,24 @@ func runServer() error {
 		return err
 	}
 	defer ds.Close()
-	if !cfg.LambdaDemo {
-		// Auto-setup tables in standard mode.
-		if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-			return fmt.Errorf("database setup failed: %w", err)
-		}
+	// Auto-setup tables in standard mode.
+	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
+		return fmt.Errorf("database setup failed: %w", err)
 	}
 
 	// Optional: provision pgvector schema if available. Never fatal — semantic
 	// search is opt-in and the app must keep running on SQLite or on Postgres
 	// without the extension.
 	pgvectorReady := false
-	if !cfg.LambdaDemo {
-		ready, err := embed.EnsureSchema(ctx, ds, cfg.EmbeddingDim)
-		switch {
-		case err != nil:
-			logger.Warn("pgvector schema setup failed; semantic search will be unavailable", "error", err)
-		case ready:
-			logger.Info("pgvector detected; semantic search schema ready", "dim", cfg.EmbeddingDim)
-			pgvectorReady = true
-		case ds.DBType() == "postgres":
-			logger.Info("pgvector extension not installed; semantic search will be unavailable until enabled")
-		}
+	ready, err := embed.EnsureSchema(ctx, ds, cfg.EmbeddingDim)
+	switch {
+	case err != nil:
+		logger.Warn("pgvector schema setup failed; semantic search will be unavailable", "error", err)
+	case ready:
+		logger.Info("pgvector detected; semantic search schema ready", "dim", cfg.EmbeddingDim)
+		pgvectorReady = true
+	case ds.DBType() == "postgres":
+		logger.Info("pgvector extension not installed; semantic search will be unavailable until enabled")
 	}
 
 	embedClient := embed.NewClient(cfg.EmbeddingAPIURL, cfg.EmbeddingAPIKey, cfg.EmbeddingModel)
@@ -210,15 +193,13 @@ func runServer() error {
 	}
 
 	// SSE hub + event store (persisted log for Last-Event-ID replay).
-	// In lambda demo mode we use SQLite — persistence works there too.
 	sseHub := sse.NewHub()
 	eventStore := sse.NewDBEventStore(ds)
 	sseHub.SetStore(eventStore)
 	go sseHub.Run()
 
-	// Retention sweep for the persisted event log. Skip when retention is 0
-	// or in lambda-demo mode (ephemeral SQLite).
-	if cfg.BoardEventsRetention > 0 && !cfg.LambdaDemo {
+	// Retention sweep for the persisted event log. Skip when retention is 0.
+	if cfg.BoardEventsRetention > 0 {
 		go runBoardEventsRetention(ctx, eventStore, cfg.BoardEventsRetention, logger)
 	}
 
@@ -243,12 +224,8 @@ func runServer() error {
 		return authMW(auth.RequireRole("member")(next))
 	}
 
-	// Discord notifier is disabled in lambda demo mode.
-	var discordN *discordnotifier.Notifier
-	if !cfg.LambdaDemo {
-		discordN = discordnotifier.NewNotifier(ds, userRepo, logger)
-		go discordN.Run()
-	}
+	discordN := discordnotifier.NewNotifier(ds, userRepo, logger)
+	go discordN.Run()
 
 	// Board routes
 	bh := boardhandler.NewHandler(boardRepo, cardRepo, commentRepo, sseHub)
@@ -309,7 +286,6 @@ func runServer() error {
 	// Settings routes
 	stg := settingshandler.NewHandler(ds, userRepo, boardRepo, cardRepo, commentRepo)
 	stg.SetSeedFunc(settingshandler.SeedFunc(seedFunc))
-	stg.SetLambdaDemo(cfg.LambdaDemo)
 	adminMW := func(next http.Handler) http.Handler {
 		return authMW(auth.RequireRole("admin")(next))
 	}
@@ -446,9 +422,7 @@ func runServer() error {
 		logger.Error("shutdown error", "error", err)
 	}
 	sseHub.Stop()
-	if discordN != nil {
-		discordN.Stop()
-	}
+	discordN.Stop()
 	logger.Info("server stopped")
 	return nil
 }
@@ -545,40 +519,4 @@ func parseLogLevel(s string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-func prepareLambdaDemoDB(cfg *config.Config) error {
-	if !strings.HasPrefix(cfg.DBURL, "sqlite://") {
-		return fmt.Errorf("lambda demo requires sqlite DB_URL, got %q", cfg.DBURL)
-	}
-
-	dst := strings.TrimPrefix(cfg.DBURL, "sqlite://")
-	if dst == "" || dst == ":memory:" {
-		return fmt.Errorf("invalid sqlite destination for lambda demo: %q", cfg.DBURL)
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return fmt.Errorf("create sqlite destination dir: %w", err)
-	}
-	if err := copyFile(cfg.DemoDBPath, dst); err != nil {
-		return fmt.Errorf("copy demo db from %q to %q: %w", cfg.DemoDBPath, dst, err)
-	}
-	return nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		_ = out.Close()
-		return err
-	}
-	return out.Close()
 }
