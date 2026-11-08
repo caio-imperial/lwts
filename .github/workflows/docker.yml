@@ -1,196 +1,49 @@
 name: Docker
 
+# Fork: validates that the image still builds. Publishing to a registry is
+# intentionally disabled (no upstream registry credentials here). If you later
+# want images in your own GHCR, add a `packages: write` permission and a
+# login/push step pointing at ghcr.io/<your-user>/lwts.
 on:
   push:
     branches: [main]
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
-env:
-  GHCR_IMAGE: ghcr.io/oceanplexian/lwts
-  DOCKERHUB_IMAGE: docker.io/oceanplexian/lwts
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - runner: arc-runner-set
-            platform: linux/amd64
-            suffix: amd64
-          - runner: [self-hosted, ARM64]
-            platform: linux/arm64
-            suffix: arm64
-    runs-on: ${{ matrix.runner }}
+    name: Build image
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Load settings
         run: |
           source settings.sh
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "COMMIT=$COMMIT" >> $GITHUB_ENV
-          echo "BUILD_DATE=$DATE" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "COMMIT=$COMMIT" >> "$GITHUB_ENV"
+          echo "BUILD_DATE=$DATE" >> "$GITHUB_ENV"
 
-      - name: Set up Buildx (remote)
-        if: matrix.suffix == 'amd64'
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver: remote
-          endpoint: tcp://buildkit.arc-runners.svc.cluster.local:1234
-
-      - name: Set up Buildx (local)
-        if: matrix.suffix != 'amd64'
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_IMAGE }}
-          tags: |
-            type=semver,pattern={{version}},suffix=-${{ matrix.suffix }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.suffix }}
-            type=sha,suffix=-${{ matrix.suffix }}
-            type=raw,value=latest-${{ matrix.suffix }},enable={{is_default_branch}}
-
-      - name: Build and push
+      - name: Build (no push)
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          push: false
+          tags: lwts:ci
           build-args: |
             VERSION=${{ env.VERSION }}
             COMMIT=${{ env.COMMIT }}
             BUILD_DATE=${{ env.BUILD_DATE }}
-          cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-${{ matrix.suffix }}
-          cache-to: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-${{ matrix.suffix }},mode=max
-
-  merge:
-    runs-on: arc-runner-set
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver: remote
-          endpoint: tcp://buildkit.arc-runners.svc.cluster.local:1234
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GHCR multi-arch manifests
-        run: |
-          source settings.sh
-          SHA_TAG="sha-${COMMIT}"
-
-          echo "Merging ${{ env.GHCR_IMAGE }}:$SHA_TAG"
-          docker buildx imagetools create -t "${{ env.GHCR_IMAGE }}:$SHA_TAG" \
-            "${{ env.GHCR_IMAGE }}:$SHA_TAG-amd64" \
-            "${{ env.GHCR_IMAGE }}:$SHA_TAG-arm64"
-
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "Merging ${{ env.GHCR_IMAGE }}:latest"
-            docker buildx imagetools create -t "${{ env.GHCR_IMAGE }}:latest" \
-              "${{ env.GHCR_IMAGE }}:latest-amd64" \
-              "${{ env.GHCR_IMAGE }}:latest-arm64"
-          fi
-
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
-            MINOR="${VERSION%.*}"
-            docker buildx imagetools create -t "${{ env.GHCR_IMAGE }}:$VERSION" \
-              "${{ env.GHCR_IMAGE }}:$VERSION-amd64" \
-              "${{ env.GHCR_IMAGE }}:$VERSION-arm64"
-            docker buildx imagetools create -t "${{ env.GHCR_IMAGE }}:$MINOR" \
-              "${{ env.GHCR_IMAGE }}:$MINOR-amd64" \
-              "${{ env.GHCR_IMAGE }}:$MINOR-arm64"
-          fi
-
-      - name: Notify Keel to deploy
-        if: github.ref == 'refs/heads/main'
-        continue-on-error: true
-        run: |
-          curl -sf --max-time 10 \
-            http://keel.keel.svc.cluster.local:9300/v1/webhooks/native \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"ghcr.io/oceanplexian/lwts","tag":"latest"}' \
-            || true
-
-      - name: Mirror to DockerHub
-        continue-on-error: true
-        run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin docker.io
-          source settings.sh
-          SHA_TAG="sha-${COMMIT}"
-
-          for TAG in "$SHA_TAG" "latest"; do
-            docker buildx imagetools create \
-              -t "${{ env.DOCKERHUB_IMAGE }}:$TAG" \
-              "${{ env.GHCR_IMAGE }}:$TAG" 2>/dev/null || true
-          done
-
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
-            MINOR="${VERSION%.*}"
-            for TAG in "$VERSION" "$MINOR"; do
-              docker buildx imagetools create \
-                -t "${{ env.DOCKERHUB_IMAGE }}:$TAG" \
-                "${{ env.GHCR_IMAGE }}:$TAG" 2>/dev/null || true
-            done
-          fi
-
-      - name: Format tags
-        id: tags
-        run: |
-          source settings.sh
-          SHA_TAG="sha-${COMMIT}"
-          TAGS="\`$SHA_TAG\`"
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            TAGS="\`latest\` · $TAGS"
-          fi
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
-            MINOR="${VERSION%.*}"
-            TAGS="\`$VERSION\` · \`$MINOR\` · $TAGS"
-          fi
-          echo "list=$TAGS" >> $GITHUB_OUTPUT
-          echo "version=$SHA_TAG" >> $GITHUB_OUTPUT
-
-      - name: Comment on commit
-        uses: peter-evans/commit-comment@v3
-        with:
-          body: |
-            ### Deployment
-
-            ✅ Published to **GHCR** and **DockerHub** — `linux/amd64` · `linux/arm64`
-
-            ```
-            docker pull ghcr.io/oceanplexian/lwts:${{ steps.tags.outputs.version }}
-            ```
-
-            ${{ steps.tags.outputs.list }}
-
-            [GHCR →](https://github.com/oceanplexian/lwts/pkgs/container/lwts)  ·  [DockerHub →](https://hub.docker.com/r/oceanplexian/lwts)
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
