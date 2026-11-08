@@ -127,7 +127,7 @@ func (t *pgTx) QueryRow(ctx context.Context, sql string, args ...any) *Row {
 }
 
 func (t *pgTx) Commit(ctx context.Context) error   { return t.tx.Commit(ctx) }
-func (t *pgTx) Rollback(ctx context.Context) error  { return t.tx.Rollback(ctx) }
+func (t *pgTx) Rollback(ctx context.Context) error { return t.tx.Rollback(ctx) }
 
 func wrapPgxRows(rows pgx.Rows) *Rows {
 	return NewRows(

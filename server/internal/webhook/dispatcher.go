@@ -15,12 +15,12 @@ import (
 )
 
 const (
-	channelCap       = 1000
-	maxConcurrent    = 20
-	deliveryTimeout  = 5 * time.Second
+	channelCap        = 1000
+	maxConcurrent     = 20
+	deliveryTimeout   = 5 * time.Second
 	retryPollInterval = 15 * time.Second
-	maxAttempts      = 3
-	autoDisableLimit = 500
+	maxAttempts       = 3
+	autoDisableLimit  = 500
 )
 
 // Backoff durations per attempt (0-indexed): immediate, 30s, 5min.
@@ -28,13 +28,13 @@ var backoffs = []time.Duration{0, 30 * time.Second, 5 * time.Minute}
 
 // Dispatcher receives events and delivers them to matching webhooks.
 type Dispatcher struct {
-	store     *Store
-	events    chan Event
-	sem       chan struct{} // concurrency semaphore
-	client    *http.Client
-	logger    *slog.Logger
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
+	store  *Store
+	events chan Event
+	sem    chan struct{} // concurrency semaphore
+	client *http.Client
+	logger *slog.Logger
+	stopCh chan struct{}
+	wg     sync.WaitGroup
 
 	// BoardNameFunc resolves board ID → name for payload envelope.
 	BoardNameFunc func(ctx context.Context, boardID string) string
@@ -42,12 +42,12 @@ type Dispatcher struct {
 
 func NewDispatcher(store *Store, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
-		store:  store,
-		events: make(chan Event, channelCap),
-		sem:    make(chan struct{}, maxConcurrent),
-		client: &http.Client{Timeout: deliveryTimeout},
-		logger: logger,
-		stopCh: make(chan struct{}),
+		store:         store,
+		events:        make(chan Event, channelCap),
+		sem:           make(chan struct{}, maxConcurrent),
+		client:        &http.Client{Timeout: deliveryTimeout},
+		logger:        logger,
+		stopCh:        make(chan struct{}),
 		BoardNameFunc: func(ctx context.Context, boardID string) string { return boardID },
 	}
 }
@@ -219,7 +219,6 @@ func (d *Dispatcher) processRetries() {
 			continue
 		}
 
-		del := del
 		bodyBytes := []byte(del.Payload)
 		d.sem <- struct{}{}
 		go func() {

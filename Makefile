@@ -1,4 +1,4 @@
-.PHONY: dev build test test-frontend test-e2e verify check-size migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
+.PHONY: dev build test test-frontend test-e2e verify check-size migrate seed lint lint-install fmt docker-up docker-down test-db test-db-down run stop reset clean \
 	push setup-buildx demo-db lambda-build lambda-push tf-init tf-apply tf-destroy
 
 PORT ?= 8099
@@ -6,6 +6,10 @@ DB ?= sqlite:///tmp/lwts-e2e.db
 DB_FILE = /tmp/lwts-e2e.db
 BIN = bin/lwts
 PID_FILE = /tmp/lwts-dev.pid
+
+# Tooling
+GOLANGCI_LINT_VERSION ?= v2.15.0
+GOLANGCI_LINT ?= $(CURDIR)/bin/golangci-lint
 
 # Docker
 APP_NAME := lwts
@@ -86,7 +90,7 @@ check-size:
 
 # Local gate to run before merging a branch: everything that CI would check
 # locally, without external services.
-verify: build check-size
+verify: build check-size lint
 	go vet ./...
 	go test -count=1 ./...
 	@[ -d node_modules ] || npm ci --silent
@@ -141,7 +145,19 @@ test-db-down:
 # ── Lint ─────────────────────────────────────────────────────
 
 lint:
-	golangci-lint run ./...
+	@test -x $(GOLANGCI_LINT) || { echo "golangci-lint $(GOLANGCI_LINT_VERSION) not installed: run 'make lint-install'"; exit 1; }
+	@v=$$($(GOLANGCI_LINT) --version | awk '{print $$4}'); \
+	 [ "$$v" = "$(GOLANGCI_LINT_VERSION:v%=%)" ] || echo "warning: golangci-lint $$v != $(GOLANGCI_LINT_VERSION); run 'make lint-install'"
+	@$(GOLANGCI_LINT) run ./...
+
+lint-install:
+	@mkdir -p bin
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+		| sh -s -- -b $(CURDIR)/bin $(GOLANGCI_LINT_VERSION)
+
+fmt:
+	@test -x $(GOLANGCI_LINT) || { echo "golangci-lint $(GOLANGCI_LINT_VERSION) not installed: run 'make lint-install'"; exit 1; }
+	@$(GOLANGCI_LINT) fmt ./...
 
 # ── Docker (multi-arch) ─────────────────────────────────────
 

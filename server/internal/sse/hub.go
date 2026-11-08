@@ -18,8 +18,8 @@ type Client struct {
 	BoardID   string
 	UserID    string
 	Username  string
-	Send      chan []byte // buffered
-	MinLiveID int64       // optional: skip live events with id <= this value
+	Send      chan []byte              // buffered
+	MinLiveID int64                    // optional: skip live events with id <= this value
 	OnEvent   func(*BoardEvent) []byte // optional: format the event for this client; falls back to formatSSE
 }
 

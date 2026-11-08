@@ -250,10 +250,7 @@ func TestDispatcherDelivery(t *testing.T) {
 
 	// Wait for delivery
 	deadline := time.After(3 * time.Second)
-	for {
-		if received.Load() > 0 {
-			break
-		}
+	for received.Load() == 0 {
 		select {
 		case <-deadline:
 			t.Fatal("delivery not received within 3s")
@@ -314,10 +311,7 @@ func TestDispatcherFanOut(t *testing.T) {
 	d.Emit(boardID, EventCardCreated, nil)
 
 	deadline := time.After(3 * time.Second)
-	for {
-		if count.Load() >= 2 {
-			break
-		}
+	for count.Load() < 2 {
 		select {
 		case <-deadline:
 			t.Fatalf("expected 2 deliveries, got %d", count.Load())

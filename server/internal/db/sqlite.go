@@ -202,7 +202,7 @@ func (t *sqliteTx) QueryRow(ctx context.Context, query string, args ...any) *Row
 }
 
 func (t *sqliteTx) Commit(ctx context.Context) error   { return t.tx.Commit() }
-func (t *sqliteTx) Rollback(ctx context.Context) error  { return t.tx.Rollback() }
+func (t *sqliteTx) Rollback(ctx context.Context) error { return t.tx.Rollback() }
 
 // wrapSQLiteRows wraps sql.Rows with time-parsing scan.
 func wrapSQLiteRows(rows *sql.Rows) *Rows {

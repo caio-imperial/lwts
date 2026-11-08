@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/google/uuid"
+	"github.com/oceanplexian/lwts/server/internal/db"
 )
 
 var avatarColors = []string{
