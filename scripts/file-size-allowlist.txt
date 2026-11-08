@@ -1,0 +1,26 @@
+# Grandfathered files above the 500-line limit.
+# Remove an entry only after splitting the file; the list must only shrink.
+docs/index.html
+docs/style.css
+server/cmd/admin.go
+server/cmd/main.go
+server/internal/board/search.go
+server/internal/card/handler.go
+server/internal/card/handler_test.go
+server/internal/repo/card.go
+server/internal/repo/repo_test.go
+server/internal/repo/seed.go
+server/internal/settings/handler.go
+server/internal/webhook/webhook_test.go
+tests/frontend/kanban.test.js
+web/index.html
+web/src/features.js
+web/src/kanban.js
+web/src/listview.js
+web/src/settings.js
+web/styles/board.css
+web/styles/detail.css
+web/styles/login.css
+web/styles/responsive.css
+web/styles/settings.css
+web/styles/theme.css

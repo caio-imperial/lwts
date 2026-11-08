@@ -1,4 +1,4 @@
-.PHONY: dev build test test-frontend test-e2e verify migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
+.PHONY: dev build test test-frontend test-e2e verify check-size migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
 	push setup-buildx demo-db lambda-build lambda-push tf-init tf-apply tf-destroy
 
 PORT ?= 8099
@@ -70,18 +70,22 @@ test:
 	go test -v -count=1 ./...
 
 test-pg:
-	DB_URL="postgres://lwts_test:lwts_test@localhost:5433/lwts_test?sslmode=disable" go test -v -count=1 -tags=integration ./...
+	DB_URL="postgres://lwts_test:lwts_test@localhost:5433/lwts_test?sslmode=disable" go test -v -count=1 -p=1 -tags=integration ./...
 
 test-sqlite:
-	DB_URL="sqlite:///tmp/lwts-test.db" go test -v -count=1 -tags=integration ./...
+	DB_URL="sqlite:///tmp/lwts-test.db" go test -v -count=1 -p=1 -tags=integration ./...
 
 test-frontend:
 	@[ -d node_modules ] || npm ci --silent
 	node --test tests/frontend/*.test.js
 
+# Fail on tracked source files over 500 lines (allowlist = existing exceptions).
+check-size:
+	@bash scripts/check-file-size.sh
+
 # Local gate to run before merging a branch: everything that CI would check
 # locally, without external services.
-verify: build
+verify: build check-size
 	go vet ./...
 	go test -count=1 ./...
 	@[ -d node_modules ] || npm ci --silent
