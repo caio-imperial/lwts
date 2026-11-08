@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://ypy2jdydz5po7fyweuvykikjum0xoney.lambda-url.us-west-2.on.aws/">Live Demo</a> · <a href="#quick-start">Quick Start</a> · <a href="#api">API Docs</a> · <a href="https://github.com/caio-imperial/lwts/releases">Releases</a>
+  <a href="#quick-start">Quick Start</a> · <a href="#api">API Docs</a> · <a href="https://github.com/caio-imperial/lwts/releases">Releases</a>
 </p>
 
 ---
