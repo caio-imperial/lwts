@@ -1,7 +1,8 @@
 # Contrato de rotas (frontend)
 
-Estado **alvo** da navegação da SPA. A implementação acontece em fases; enquanto
-a fase 1 não entra, o app usa `?board=<uuid>` + hash.
+Navegação da SPA por **path** (History API), sem hash routing e sem redirects de
+URLs antigas. A implementação está na fase 2b; identificadores `slug`/`number`
+entram na fase 3.
 
 ## Rotas
 
@@ -43,17 +44,11 @@ Reservada a **estado efêmero**, nunca identidade/navegação:
 - Mudança de filtro/visualização: `history.replaceState`.
 - Um único listener de `popstate`; **sem** roteamento por hash.
 
-## Redirects legados (somente nesta versão)
+## URLs antigas
 
-No boot, antes de renderizar:
-
-| URL antiga | Nova |
-|---|---|
-| `?board=<uuid>` | `/boards/<uuid>` |
-| `#settings` / `#settings/<section>` | `/settings` / `/settings/<section>` |
-| `#<KEY>` | `/boards/<último-board>/cards/<KEY>` |
-
-Filtros presentes na query antiga são preservados no redirect.
+Não há redirect de compatibilidade. `?board=...` e hash (`#settings`, `#<KEY>`)
+são **ignorados**: a rota resolve pelo path e, em `/`, o app abre o último board
+(ou `/boards`).
 
 ## Fallback do servidor (SPA)
 
@@ -86,4 +81,5 @@ UUID continuam válidos; a fase 3 acrescenta resolução por `slug`/`number`.
 2. "Copiar link" do card inclui o board e resolve keys com hífen (`MY-BOA-1`).
 3. `/boards` (todos os boards) sobrevive a refresh e ao botão voltar.
 4. `POST /api/nope` → 404; `/assets/nao-existe.js` → 404.
-5. URLs legadas redirecionam uma única vez e não voltam ao hash.
+5. URLs antigas (`?board=`, hash) não quebram o boot: caem em `/boards` ou no
+   último board, sem redirect e sem tela em branco.

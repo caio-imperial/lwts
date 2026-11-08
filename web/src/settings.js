@@ -1,8 +1,5 @@
 // ── Confirm Modal (replaces browser confirm()) ──
 
-// Hash routing suppression flag (shared with kanban.js)
-var _suppressHashChange = false;
-
 let _fnConfirmResolve = null;
 
 function fnConfirm(message, title, okLabel) {
@@ -445,7 +442,7 @@ function _applyLambdaDemoRestrictions() {
   }
 }
 
-function showSettingsSection(id, _fromHash) {
+function showSettingsSection(id, _fromRoute) {
   window.activeSettingsSection = id;
   document.querySelectorAll('.settings-nav-item').forEach((el, i) => {
     el.classList.toggle('active', SETTINGS_SECTIONS[i].id === id);
@@ -454,12 +451,9 @@ function showSettingsSection(id, _fromHash) {
     el.classList.toggle('active', el.id === 'settings-' + id);
   });
 
-  // Update hash with section (replaceState to avoid polluting history)
-  if (!_fromHash) {
-    window._suppressHashChange = true;
-    const hashSection = id === 'general' ? '#settings' : '#settings/' + id;
-    history.replaceState(null, '', hashSection);
-    window._suppressHashChange = false;
+  // Section switches replace the current history entry (no new back-step).
+  if (!_fromRoute) {
+    window.Router.navigate({ name: 'settings', section: id }, { replace: true });
   }
 
   _applyRoleRestrictions();
@@ -1458,19 +1452,18 @@ async function updateDangerZoneLabels() {
   } catch (e) { /* ignore */ }
 }
 
-async function openSettings(_fromHash) {
+async function openSettings(_fromRoute, section) {
   const transitionGen = ++_settingsTransitionGen;
+  if (section) window.activeSettingsSection = section;
   await _ensureLambdaDemoMode();
   if (transitionGen !== _settingsTransitionGen) return;
 
   // Update danger zone labels based on workspace state
   updateDangerZoneLabels();
 
-  // Update URL hash (unless responding to a hash change)
-  if (!_fromHash) {
-    window._suppressHashChange = true;
-    history.pushState(null, '', '#settings' + (window.activeSettingsSection && window.activeSettingsSection !== 'general' ? '/' + window.activeSettingsSection : ''));
-    window._suppressHashChange = false;
+  // Opening settings pushes one history entry (unless the route drove it).
+  if (!_fromRoute) {
+    window.Router.navigate({ name: 'settings', section: window.activeSettingsSection || 'general' });
   }
 
   const board = document.getElementById('board');
@@ -1566,18 +1559,22 @@ function _buildSettingsPickerMenu() {
   }
 }
 
-function closeSettings(_fromHash) {
+function closeSettings(_fromRoute) {
   const transitionGen = ++_settingsTransitionGen;
 
   // If settings isn't open, nothing to do
   const _sp = document.getElementById('settings-page');
   if (_sp && !_sp.classList.contains('active')) return;
 
-  // Clear hash (unless responding to a hash change)
-  if (!_fromHash && location.hash.startsWith('#settings')) {
-    window._suppressHashChange = true;
-    history.pushState(null, '', location.pathname + location.search);
-    window._suppressHashChange = false;
+  // Return to the last concrete board (replace, so back doesn't reopen settings).
+  if (!_fromRoute) {
+    const last = window.lastConcreteBoardId || window.currentBoardId;
+    if (last) {
+      window.Router.navigate({
+        name: last === 'all' ? 'allBoards' : 'board',
+        boardRef: last,
+      }, { replace: true });
+    }
   }
 
   const board = document.getElementById('board');
@@ -2853,7 +2850,6 @@ function resizeImageToDataURL(file, maxSize) {
 }
 
 // ── Expose all public symbols to window for HTML onclick handlers and cross-file access ──
-window._suppressHashChange = _suppressHashChange;
 window.fnConfirm = fnConfirm;
 window.fnConfirmResolve = fnConfirmResolve;
 window._fnConfirmResolve = _fnConfirmResolve;

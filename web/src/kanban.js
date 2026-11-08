@@ -246,26 +246,21 @@ async function loadFromAPI() {
       boardList = [board];
     }
 
-    // Use board ID from URL, then localStorage, then first board
-    const urlBoardId = new URL(window.location).searchParams.get('board');
-    if (urlBoardId && boardList.find(b => b.id === urlBoardId)) {
-      currentBoardId = urlBoardId;
-    }
-    if (!currentBoardId || !boardList.find(b => b.id === currentBoardId)) {
-      currentBoardId = boardList[0].id;
-    }
-    rememberConcreteBoard(currentBoardId);
-    // Sync URL with active board
-    const url = new URL(window.location);
-    url.searchParams.set('board', currentBoardId);
-    window.history.replaceState(null, '', url);
+    // Resolve the boot route (legacy URLs first, then the path router) before
+    // rendering, so a deep link paints the correct screen on the first pass.
+    await applyBootRoute();
 
-    await loadBoardCards(currentBoardId);
     window.renderBoardPicker();
 
     // Connect SSE stream for real-time updates
-    if (typeof window.connectBoardStream === 'function') {
+    if (currentBoardId && currentBoardId !== 'all' && typeof window.connectBoardStream === 'function') {
       window.connectBoardStream(currentBoardId);
+    }
+
+    // A single popstate listener drives every subsequent route change.
+    if (!window._lwtsRouteListenerBound) {
+      window._lwtsRouteListenerBound = true;
+      window.addEventListener('popstate', handleRoute);
     }
 
     // Welcome modal is shown by showBoard() before the fade-in,
@@ -279,6 +274,177 @@ async function loadFromAPI() {
     console.error('Failed to load from API, falling back to localStorage', e);
     loadFromLocalStorage();
   }
+}
+
+// ── Route resolution (contract: docs/ROUTES.md) ──
+
+function resolveBoardRef(ref) {
+  if (!ref) return null;
+  return boardList.find(b => b.id === ref) || null;
+}
+
+function findCardByRef(ref) {
+  if (!ref) return null;
+  const needle = String(ref).toLowerCase();
+  const matches = (card) =>
+    card.id === ref || (card.key && String(card.key).toLowerCase() === needle);
+  for (const col of COLUMNS) {
+    const card = (state[col.id] || []).find(matches);
+    if (card) return card;
+  }
+  if (state.cleared) return state.cleared.find(matches) || null;
+  return null;
+}
+
+// Redirect pre-router URLs once, then let parseUrl handle the normalized path.
+
+async function _bootBoardFallback(fallbackId, query) {
+  if (fallbackId) {
+    window.history.replaceState(null, '', window.Router.buildUrl({ name: 'board', boardRef: fallbackId, query }));
+    currentBoardId = fallbackId;
+    rememberConcreteBoard(fallbackId);
+    await loadBoardCards(fallbackId);
+    return;
+  }
+  window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards', query }));
+  currentBoardId = 'all';
+  await loadAllBoardCards();
+}
+
+async function applyBootRoute() {
+  const route = window.Router.parseUrl(location.href);
+  const fallbackId = getDefaultBoardId();
+
+  if (route.name === 'root') {
+    await _bootBoardFallback(fallbackId, route.query);
+    return;
+  }
+
+  if (route.name === 'allBoards') {
+    currentBoardId = 'all';
+    await loadAllBoardCards();
+    return;
+  }
+
+  if (route.name === 'board') {
+    const board = resolveBoardRef(route.boardRef);
+    if (board) {
+      currentBoardId = board.id;
+      rememberConcreteBoard(board.id);
+      await loadBoardCards(board.id);
+    } else {
+      await _bootBoardFallback(fallbackId, route.query);
+    }
+    return;
+  }
+
+  if (route.name === 'card') {
+    const resolved = resolveBoardRef(route.boardRef);
+    const board = resolved || (fallbackId ? { id: fallbackId } : null);
+    if (!board) {
+      window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards', query: route.query }));
+      currentBoardId = 'all';
+      await loadAllBoardCards();
+      return;
+    }
+
+    currentBoardId = board.id;
+    rememberConcreteBoard(board.id);
+    await loadBoardCards(board.id);
+
+    const card = findCardByRef(route.cardRef);
+    if (card) {
+      // A stale/absent board ref in the URL is corrected to the resolved board.
+      if (!resolved) {
+        window.history.replaceState(null, '', window.Router.buildUrl({
+          name: 'card', boardRef: board.id, cardRef: card.key || card.id, query: route.query,
+        }));
+      }
+      openDetail(card.id, true);
+    } else {
+      window.history.replaceState(null, '', window.Router.buildUrl({
+        name: 'board', boardRef: board.id, query: route.query,
+      }));
+    }
+    return;
+  }
+
+  if (route.name === 'settings') {
+    if (fallbackId) {
+      currentBoardId = fallbackId;
+      rememberConcreteBoard(fallbackId);
+      await loadBoardCards(fallbackId);
+    } else {
+      currentBoardId = 'all';
+      await loadAllBoardCards();
+    }
+    window.openSettings(true, route.section);
+    return;
+  }
+
+  // notFound — normalize to a route the app can render.
+  window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards', query: route.query }));
+  currentBoardId = 'all';
+  await loadAllBoardCards();
+}
+
+// Re-apply the current URL without refetching the board list (popstate).
+async function handleRoute() {
+  const route = window.Router.parseUrl(location.href);
+
+  if (route.name === 'notFound') {
+    window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards' }));
+    return;
+  }
+
+  if (route.name === 'root') {
+    const target = getDefaultBoardId();
+    const state = target ? { name: 'board', boardRef: target } : { name: 'allBoards' };
+    window.history.replaceState(null, '', window.Router.buildUrl(state));
+    return handleRoute();
+  }
+
+  if (route.name === 'settings') {
+    const detailModal = document.getElementById('detail-modal');
+    if (detailModal && detailModal.classList.contains('active')) closeDetail(true);
+    window.openSettings(true, route.section);
+    return;
+  }
+
+  // Leaving settings for a board/card route — close it without touching history.
+  const settingsPage = document.getElementById('settings-page');
+  if (settingsPage && settingsPage.classList.contains('active')) window.closeSettings(true);
+
+  if (route.name === 'allBoards') {
+    const detailModal = document.getElementById('detail-modal');
+    if (detailModal && detailModal.classList.contains('active')) closeDetail(true);
+    await window.selectBoard('all', 'All Boards', { fromRoute: true });
+    return;
+  }
+
+  const board = resolveBoardRef(route.boardRef);
+  if (!board) {
+    const target = getDefaultBoardId();
+    window.history.replaceState(null, '', window.Router.buildUrl(
+      target ? { name: 'board', boardRef: target } : { name: 'allBoards' },
+    ));
+    return handleRoute();
+  }
+
+  if (route.name === 'card') {
+    await window.selectBoard(board.id, board.name, { fromRoute: true });
+    const card = findCardByRef(route.cardRef);
+    if (card) {
+      window.openDetail(card.id, true);
+    } else {
+      window.history.replaceState(null, '', window.Router.buildUrl({ name: 'board', boardRef: board.id }));
+    }
+    return;
+  }
+
+  const detailModal = document.getElementById('detail-modal');
+  if (detailModal && detailModal.classList.contains('active')) closeDetail(true);
+  await window.selectBoard(board.id, board.name, { fromRoute: true });
 }
 
 let _loadGeneration = 0;
@@ -428,7 +594,7 @@ function renderBoardPicker() {
   const settingsOpt = document.createElement('div');
   settingsOpt.className = 'header-board-option';
   settingsOpt.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings';
-  settingsOpt.onclick = () => { closeBoardPicker(); location.hash = '#settings/boards'; };
+  settingsOpt.onclick = () => { closeBoardPicker(); window.openSettings(false, 'boards'); };
   menu.appendChild(settingsOpt);
 
   // Update label
@@ -1290,7 +1456,7 @@ function _refreshEpicDropdown() {
   });
 }
 
-function openDetail(cardId, _fromHash) {
+function openDetail(cardId, _fromRoute) {
   let foundCard = null, foundCol = null;
   for (const col of COLUMNS) {
     const c = (state[col.id] || []).find(c => c.id === cardId);
@@ -1304,11 +1470,15 @@ function openDetail(cardId, _fromHash) {
   if (!foundCard) return;
   window._pendingDueDate = null;
 
-  // Update URL hash (unless we're already responding to a hash change)
-  if (!_fromHash && foundCard.key) {
-    window._suppressHashChange = true;
-    history.pushState(null, '', '#' + foundCard.key);
-    window._suppressHashChange = false;
+  // Sync the URL with the open card (unless the route already points at it).
+  if (!_fromRoute) {
+    const boardRef = currentBoardId === 'all'
+      ? (foundCard.board_id || currentBoardId)
+      : (currentBoardId || foundCard.board_id);
+    const cardRef = foundCard.key || foundCard.id;
+    if (boardRef && cardRef) {
+      window.Router.navigate({ name: 'card', boardRef, cardRef });
+    }
   }
 
   detailCard = foundCard;
@@ -1375,7 +1545,7 @@ function openDetail(cardId, _fromHash) {
   document.getElementById('detail-modal').classList.add('active');
 }
 
-function closeDetail(_fromHash) {
+function closeDetail(_fromRoute) {
   if (_isCreateMode) { closeCreateMode(); return; }
   // Auto-save any pending changes
   const closingCard = detailCard;
@@ -1397,11 +1567,12 @@ function closeDetail(_fromHash) {
     window.render();
   }
 
-  // Clear hash (unless we're already responding to a hash change)
-  if (!_fromHash && location.hash) {
-    window._suppressHashChange = true;
-    history.pushState(null, '', location.pathname + location.search);
-    window._suppressHashChange = false;
+  // Return the URL to the board that is showing behind the modal.
+  if (!_fromRoute && currentBoardId) {
+    window.Router.navigate({
+      name: currentBoardId === 'all' ? 'allBoards' : 'board',
+      boardRef: currentBoardId,
+    }, { replace: true });
   }
 }
 
@@ -2355,7 +2526,12 @@ function closeLightbox() {
 
 function copyCardLink() {
   if (!detailCard) return;
-  const url = window.location.origin + window.location.pathname + '#' + detailCard.key;
+  const boardRef = detailCard.board_id || currentBoardId;
+  const cardRef = detailCard.key || detailCard.id;
+  if (!boardRef || !cardRef) return;
+  const url = window.location.origin + window.Router.buildUrl({
+    name: 'card', boardRef, cardRef,
+  });
   navigator.clipboard.writeText(url).then(() => {
     const el = document.getElementById('detail-key-text');
     const orig = el.textContent;
@@ -2406,14 +2582,10 @@ function switchBoard(id, name) {
     const isAllBoards = id === 'all';
     currentBoardId = id;
     if (!isAllBoards) rememberConcreteBoard(id);
-    // Update URL with board ID for persistence across refreshes
-    const url = new URL(window.location);
-    if (isAllBoards) {
-      url.searchParams.delete('board');
-    } else {
-      url.searchParams.set('board', id);
-    }
-    window.history.replaceState(null, '', url);
+    // Keep the URL in sync with the active board.
+    window.Router.navigate(isAllBoards
+      ? { name: 'allBoards' }
+      : { name: 'board', boardRef: id });
     document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _capitalize(name || id);
     closeBoardPicker();
     if (isAllBoards) {
@@ -2679,9 +2851,7 @@ window.initBoard = function() {
     if (typeof window.buildFilterCheckboxes === "function") {
       window.buildFilterCheckboxes('assignee', USERS.filter(u => u.value !== 'unassigned').map(u => ({ value: u.value, label: u.label, initials: u.initials, avatar_color: u.avatar_color, avatar_url: u.avatar_url })));
     }
-    loadFromAPI().then(() => {
-      if (location.hash) navigateToHash();
-    });
+    loadFromAPI();
     initUserMenu();
   });
 };
@@ -2998,79 +3168,11 @@ function logOut() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// URL HASH ROUTING
+// ROUTING
 // ═══════════════════════════════════════════════════════════════
 
-// window._suppressHashChange is declared in settings.js (loads first)
-
-function findCardByKey(key) {
-  for (const col of COLUMNS) {
-    const card = (state[col.id] || []).find(c => c.key === key);
-    if (card) return card;
-  }
-  return null;
-}
-
-function navigateToHash() {
-  const hash = location.hash.replace(/^#/, '');
-  if (!hash) {
-    // No hash — close any open modal/settings
-    const detailModal = document.getElementById('detail-modal');
-    if (detailModal && detailModal.classList.contains('active')) {
-      closeDetail(true);
-    }
-    const settingsPage = document.getElementById('settings-page');
-    if (settingsPage && settingsPage.classList.contains('active')) {
-      window.closeSettings(true);
-    }
-    return;
-  }
-
-  // Settings: #settings or #settings/section
-  if (hash === 'settings' || hash.startsWith('settings/')) {
-    const section = hash.includes('/') ? hash.split('/')[1] : 'general';
-    const settingsPage = document.getElementById('settings-page');
-
-    // Close detail modal if open
-    const detailModal = document.getElementById('detail-modal');
-    if (detailModal && detailModal.classList.contains('active')) {
-      closeDetail(true);
-    }
-
-    // Set section before opening so openSettings picks it up
-    if (typeof window.activeSettingsSection !== "undefined") {
-      window.activeSettingsSection = section;
-    }
-
-    if (!settingsPage || !settingsPage.classList.contains('active')) {
-      window.openSettings(true);
-    } else {
-      // Already in settings, just switch section
-      window.showSettingsSection(section, true);
-    }
-    return;
-  }
-
-  // Card key: PREFIX-NUMBER pattern (e.g. LWTS-9)
-  if (/^[A-Z]+-\d+$/i.test(hash)) {
-    // Close settings if open
-    const settingsPage = document.getElementById('settings-page');
-    if (settingsPage && settingsPage.classList.contains('active')) {
-      window.closeSettings(true);
-    }
-
-    const card = findCardByKey(hash.toUpperCase());
-    if (card) {
-      window.openDetail(card.id, true);
-    }
-    return;
-  }
-}
-
-window.addEventListener('hashchange', () => {
-  if (window._suppressHashChange) return;
-  navigateToHash();
-});
+// Boot routing lives in applyBootRoute(); subsequent history changes are
+// handled by the single popstate listener registered in loadFromAPI().
 
 // ═══════════════════════════════════════════════════════════════
 // WINDOW EXPORTS — expose everything for HTML onclick handlers
@@ -3182,8 +3284,7 @@ window.closeUserMenu = closeUserMenu;
 window.toggleTheme = toggleTheme;
 window.switchAccount = switchAccount;
 window.logOut = logOut;
-window.findCardByKey = findCardByKey;
-window.navigateToHash = navigateToHash;
+window.findCardByRef = findCardByRef;
 window.renderBoardPicker = renderBoardPicker;
 window.SIDEBAR_FIELDS = SIDEBAR_FIELDS;
 window.refreshGithubLinks = refreshGithubLinks;

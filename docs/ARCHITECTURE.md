@@ -92,8 +92,8 @@ Características atuais:
   comunicam por `window.*` (centenas de ocorrências), não por imports explícitos.
 - `kanban.js` (~3.2k linhas) e `settings.js` (~3.1k linhas) concentram múltiplas
   responsabilidades.
-- A navegação usa **dois canais**: query `?board=<uuid>` e hash
-  (`#settings/...`, `#<KEY>`). O contrato novo está em [ROUTES.md](ROUTES.md).
+- A navegação usa **path** (`/boards/...`, `/settings/...`) via History API.
+  URLs antigas com `?board=` ou hash são ignoradas (sem redirect).
 
 ## Testes
 

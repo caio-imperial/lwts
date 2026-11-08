@@ -68,9 +68,8 @@ const Auth = {
         window.showWelcome();
       }
 
-      // If hash points to settings, hide board div to prevent FOUC
-      const hash = window.location.hash.replace(/^#/, '');
-      if (hash === 'settings' || hash.startsWith('settings/')) {
+      // If the route points to settings, hide board div to prevent FOUC
+      if (window.Router.parseUrl(location.href).name === 'settings') {
         const boardDiv = document.getElementById('board');
         if (boardDiv) boardDiv.style.display = 'none';
       }

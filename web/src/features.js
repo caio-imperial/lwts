@@ -125,7 +125,7 @@ function _buildPickerMenu(menu, opts) {
   settingsOpt.className = 'header-board-option' + (activeId === 'settings' ? ' active' : '');
   settingsOpt.style.cssText = 'display:flex;align-items:center;gap:6px';
   settingsOpt.innerHTML = _gearIcon + ' Settings';
-  settingsOpt.onclick = () => { closeMenu(); location.hash = '#settings/boards'; };
+  settingsOpt.onclick = () => { closeMenu(); window.openSettings(false, 'boards'); };
   menu.appendChild(settingsOpt);
 }
 
@@ -167,7 +167,7 @@ async function deleteBoard(boardId, boardName) {
   }
 }
 
-function selectBoard(boardId, boardName) {
+function selectBoard(boardId, boardName, options = {}) {
   const isAllBoards = boardId === 'all';
   const resolvedBoardName = boardName || window.boardList.find(b => b.id === boardId)?.name || boardId;
 
@@ -181,14 +181,12 @@ function selectBoard(boardId, boardName) {
   }
   document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _cap(resolvedBoardName);
 
-  // Update URL with board ID for persistence across refreshes
-  const url = new URL(window.location);
-  if (isAllBoards) {
-    url.searchParams.delete('board');
-  } else {
-    url.searchParams.set('board', boardId);
+  // Keep the URL in sync unless the route already drove this selection.
+  if (!options.fromRoute) {
+    window.Router.navigate(isAllBoards
+      ? { name: 'allBoards' }
+      : { name: 'board', boardRef: boardId });
   }
-  window.history.replaceState(null, '', url);
 
   // Close picker
   if (typeof window.closeBoardPicker === 'function') window.closeBoardPicker();
