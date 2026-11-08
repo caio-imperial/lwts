@@ -109,6 +109,13 @@ async function pickBoard(page, name) {
   await expect(page.locator('#board-menu')).toBeHidden();
 }
 
+// Opens the create-card modal from the current view.
+async function openCreateCard(page) {
+  await page.locator('button[onclick="openCreateModal()"]').first().click();
+  await expect(page.locator('#detail-modal')).toHaveClass(/active/);
+  await expect(page.locator('#detail-title')).toBeVisible();
+}
+
 module.exports = {
   TEST_USER,
   login,
@@ -123,4 +130,5 @@ module.exports = {
   watchConsole,
   openBoardPicker,
   pickBoard,
+  openCreateCard,
 };

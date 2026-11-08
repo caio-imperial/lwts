@@ -745,6 +745,17 @@ function render() {
 
 }
 
+// Renders the active view. The board is always kept in sync (it is the source
+// of truth for drag&drop and partial updates), and the list view is re-rendered
+// when it is the visible mode.
+function renderViews() {
+  render();
+  if (typeof window.currentView !== 'undefined' && window.currentView === 'list'
+    && typeof window.renderListView === 'function') {
+    window.renderListView();
+  }
+}
+
 function _renderStandardBoard(frag) {
   COLUMNS.forEach((col, ci) => {
     const cards = state[col.id] || [];
@@ -1222,7 +1233,13 @@ function openCreateModal() {
     // Refresh board options in case boards changed
     const projectOpts = boardList.map(b => ({ value: b.id, label: b.name }));
     ddDetailProject.setOptions(projectOpts);
-    ddDetailProject.setValue(currentBoardId, true);
+    // In "All Boards" mode there is no concrete board to post to: default to
+    // the last concrete board (or the first board) so the card is created
+    // somewhere valid instead of POSTing to /boards/all/cards.
+    const defaultBoardId = currentBoardId === 'all'
+      ? (lastConcreteBoardId || (boardList[0] && boardList[0].id) || '')
+      : currentBoardId;
+    ddDetailProject.setValue(defaultBoardId, true);
   }
   // Show project row in create mode
   const projectRow = document.getElementById('detail-project-row');
@@ -1278,7 +1295,11 @@ function openCreateModal() {
 
 function _updateCreateBtnState() {
   const btn = document.getElementById('create-submit-btn');
-  if (btn) btn.disabled = !document.getElementById('detail-title').value.trim();
+  if (!btn) return;
+  const title = document.getElementById('detail-title').value.trim();
+  const project = ddDetailProject ? ddDetailProject.getValue() : currentBoardId;
+  const hasBoard = !!project && project !== 'all';
+  btn.disabled = !title || !hasBoard;
 }
 
 function closeCreateMode() {
@@ -1329,13 +1350,17 @@ function submitCreateFromDetail() {
   const pendingCommentTexts = _pendingComments.map(c => c.body || c.text);
 
   const targetBoardId = (ddDetailProject ? ddDetailProject.getValue() : null) || currentBoardId;
-  const isCurrentBoard = targetBoardId === currentBoardId;
+  if (!targetBoardId || targetBoardId === 'all') {
+    window.Toast.error('Select a board to create this card');
+    return;
+  }
+  const isCurrentBoard = currentBoardId !== 'all' && targetBoardId === currentBoardId;
 
   if (isCurrentBoard) {
     state[col] = state[col] || [];
     state[col].push(card);
     _renderAnimateCards = true;
-    save(); window.render();
+    save(); window.renderViews();
   }
 
   _pendingDescription = '';
@@ -1371,10 +1396,15 @@ function submitCreateFromDetail() {
           colCards.push(fromAPI(serverCard));
         }
         cardIndex[serverCard.id] = serverCard;
-        save(); window.render();
+        save(); window.renderViews();
       } else {
         const boardName = boardList.find(b => b.id === targetBoardId)?.name || targetBoardId;
         window.Toast.success('Card created on ' + boardName);
+        // In "All Boards" the new card belongs to another board: refresh the
+        // aggregated view so it becomes visible immediately.
+        if (window.currentBoardId === 'all' && typeof window.loadAllBoardCards === 'function') {
+          window.loadAllBoardCards();
+        }
       }
       if (window.Notifier && typeof window.Notifier.handleCardCreated === 'function') {
         window.Notifier.handleCardCreated(serverCard);
@@ -1389,7 +1419,7 @@ function submitCreateFromDetail() {
       window.Toast.error('Failed to create card: ' + (err.message || 'unknown error'));
       if (isCurrentBoard) {
         state[col] = state[col].filter(c => c.id !== tempId);
-        save(); window.render();
+        save(); window.renderViews();
       }
     });
   }
@@ -1434,6 +1464,7 @@ function initDetailDropdowns() {
         renderDetailCustomFields(v, _pendingCustomFields);
         refreshSidebarTexts();
         closeAllSidebarFields();
+        _updateCreateBtnState();
       }
     },
   });
@@ -3210,6 +3241,7 @@ window.getDefaultBoardId = getDefaultBoardId;
 window.loadFromLocalStorage = loadFromLocalStorage;
 window.save = save;
 window.render = render;
+window.renderViews = renderViews;
 window._scheduleColumnHeightSync = _scheduleColumnHeightSync;
 window.createCardEl = createCardEl;
 window.onDragStart = onDragStart;
