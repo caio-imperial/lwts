@@ -73,12 +73,21 @@ func (r *CardRepository) nextKey(ctx context.Context, tx db.Tx, boardID string) 
 	}
 
 	var maxKeySQL string
+	var keyArgs []any
 	if r.ds.DBType() == "postgres" {
 		maxKeySQL = `SELECT COALESCE(MAX(CAST(SUBSTRING(key FROM '[0-9]+$') AS INTEGER)), 0) FROM cards WHERE board_id = $1`
+		keyArgs = []any{boardID}
 	} else {
-		maxKeySQL = `SELECT COALESCE(MAX(CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER)), 0) FROM cards WHERE board_id = $1`
+		// Strip the "<project_key>-" prefix by its length. Using INSTR(key, '-')
+		// would stop at the first dash, so a project key like "MY-BOARD"
+		// ("MY-BOARD-1") would cast a non-numeric suffix to 0 and the next
+		// card would reuse key 1, violating idx_cards_key (500 on create).
+		// Params stay in textual order because the SQLite datasource rewrites
+		// $N placeholders to positional "?" markers.
+		maxKeySQL = `SELECT COALESCE(MAX(CAST(SUBSTR(key, LENGTH($1) + 2) AS INTEGER)), 0) FROM cards WHERE board_id = $2`
+		keyArgs = []any{projectKey, boardID}
 	}
-	row = tx.QueryRow(ctx, maxKeySQL, boardID)
+	row = tx.QueryRow(ctx, maxKeySQL, keyArgs...)
 	var maxNum int
 	if err := row.Scan(&maxNum); err != nil {
 		return "", err

@@ -228,6 +228,30 @@ func TestCardCreate(t *testing.T) {
 	}
 }
 
+// A project key containing dashes must not break numeric key generation.
+// Regression: the suffix used to be stripped at the first dash, so every card
+// after the first got key "<prefix>-1" and hit the unique index (500).
+func TestCardCreateDashedProjectKey(t *testing.T) {
+	ds := setupTestDB(t)
+	users := NewUserRepository(ds)
+	boards := NewBoardRepository(ds)
+	cards := NewCardRepository(ds)
+	ctx := context.Background()
+
+	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
+	board, _ := boards.Create(ctx, "Board", "MY-BOARD", owner.ID)
+
+	for i, want := range []string{"MY-BOARD-1", "MY-BOARD-2", "MY-BOARD-3"} {
+		c, err := cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: fmt.Sprintf("Card %d", i+1)})
+		if err != nil {
+			t.Fatalf("create card %d: %v", i+1, err)
+		}
+		if c.Key != want {
+			t.Errorf("card %d key = %q, want %q", i+1, c.Key, want)
+		}
+	}
+}
+
 func TestCardListByBoard(t *testing.T) {
 	ds := setupTestDB(t)
 	users := NewUserRepository(ds)
