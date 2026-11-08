@@ -35,6 +35,9 @@ test('boot shows the default workspace in the picker', async ({ page }) => {
 
   await expect(page.locator('#workspace-picker')).toBeVisible();
   await expect(page.locator('#workspace-picker-label')).toHaveText(defaultWorkspace.name);
+  // The workspace name is the navbar brand now: brand face, no static LWTS title.
+  await expect(page.locator('#workspace-picker-label')).toHaveCSS('font-family', /Audiowide/);
+  await expect(page.locator('.header-title')).toHaveCount(0);
 
   const menu = await openWorkspacePicker(page);
   await expect(menu.locator('.header-board-option', { hasText: defaultWorkspace.name }).first())
@@ -151,7 +154,7 @@ test('rename the current workspace updates the picker and the slug', async ({ pa
   expect((await page.request.get(`${origin}/api/v1/workspaces/${oldSlug}/boards`, { headers })).status()).toBe(404);
 
   // Closing settings returns to the renamed workspace root.
-  await page.locator('.header-title').click();
+  await page.locator('#settings-back').click();
   await expect.poll(() => pathOf(page)).toBe(`/${newSlug}`);
   expect(problems).toEqual([]);
 });

@@ -329,6 +329,16 @@ function renderSettingsNav() {
   if (!nav) return;
   nav.innerHTML = '';
 
+  // Explicit way back to the board; the navbar workspace chip no longer
+  // doubles as the settings close control.
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.id = 'settings-back';
+  back.className = 'settings-back';
+  back.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg><span>Back to board</span>';
+  back.onclick = () => closeSettings();
+  nav.appendChild(back);
+
   let lastGroup = null;
   SETTINGS_SECTIONS.forEach(sec => {
     if (sec.group !== lastGroup) {

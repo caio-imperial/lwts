@@ -36,6 +36,39 @@ body.light-theme .settings-page {
 }
 .settings-nav::-webkit-scrollbar { display: none; }
 
+.settings-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 20px);
+  margin: 0 10px 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.settings-back:hover {
+  background: var(--surface-01);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+.settings-back svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
 .settings-nav-item {
   display: flex;
   align-items: center;

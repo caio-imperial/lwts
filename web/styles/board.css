@@ -53,47 +53,6 @@ body.light-theme #app-board::after {
   align-items: center;
   gap: 8px;
 }
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 1.15rem;
-  font-weight: 700;
-  font-family: var(--font-brand);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.header-logo-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: var(--brand-logo-bg, linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%));
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2);
-  flex-shrink: 0;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.header-title {
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.header-title:hover {
-  transform: scale(1.06);
-}
-.header-title:active {
-  transform: scale(0.92);
-  transition: transform 0.1s ease;
-}
-.header-title:hover .header-logo-box {
-  box-shadow: 0 2px 8px var(--brand-logo-glow, rgba(43,125,233,0.4)), inset 0 1px 0 rgba(255,255,255,0.2);
-}
-.header-logo {
-  height: 16px;
-  width: 16px;
-  color: #fff;
-}
 .header-sep {
   color: var(--text-dimmed);
   font-size: 1.2rem;
@@ -130,17 +89,74 @@ body.light-theme #app-board::after {
 .header-board-picker.open .header-board-chevron {
   transform: rotate(180deg);
 }
-/* Workspace picker sits left of the board picker. It reads as context
-   (dimmer, slightly smaller) while the board picker stays the primary title. */
+/* Empty plugin mount point: contributes nothing until a header plugin
+   appends its own brand element. */
+.header-plugin-slot {
+  display: contents;
+}
+
+/* The workspace picker is the primary navbar identity: brand logo + the
+   workspace name set in the brand face. The board picker beside it stays
+   secondary context. */
 .header-workspace-picker {
-  font-size: 1rem;
-  color: var(--text-dimmed);
-  max-width: 220px;
+  gap: 8px;
+  max-width: 300px;
+  padding: 5px 10px 5px 6px;
+  color: var(--text-primary);
+  font-family: var(--font-brand);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  line-height: 1.1;
+}
+.header-workspace-picker:hover {
+  color: var(--text-bright);
+}
+.header-workspace-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--brand-logo-bg, linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%));
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2);
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+}
+.header-workspace-logo svg {
+  width: 15px;
+  height: 15px;
+  color: #fff;
+}
+.header-workspace-picker:hover .header-workspace-logo {
+  transform: scale(1.06);
+  box-shadow: 0 2px 8px var(--brand-logo-glow, rgba(43,125,233,0.4)), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.header-workspace-picker:active .header-workspace-logo {
+  transform: scale(0.94);
 }
 #workspace-picker-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+.header-workspace-picker .header-board-chevron {
+  flex-shrink: 0;
+}
+.header-secondary-picker {
+  max-width: 220px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+#board-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .header-board-menu.header-workspace-menu {
   min-width: 220px;
