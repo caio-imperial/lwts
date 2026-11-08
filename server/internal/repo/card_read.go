@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 
 	"github.com/oceanplexian/lwts/server/internal/db"
 )
@@ -15,7 +16,7 @@ func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 		 FROM cards WHERE id = $1`, id)
 
 	c, err := scanCard(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Card{}, ErrNotFound
 	}
 	return c, err
@@ -88,7 +89,7 @@ func (r *CardRepository) GetByNumber(ctx context.Context, boardID string, number
 		 FROM cards WHERE board_id = $1 AND number = $2`, boardID, number)
 
 	c, err := scanCard(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Card{}, ErrNotFound
 	}
 	return c, err
@@ -104,7 +105,7 @@ func (r *CardRepository) GetByKeyInBoard(ctx context.Context, boardID, key strin
 		 FROM cards WHERE board_id = $1 AND key = $2`, boardID, key)
 
 	c, err := scanCard(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Card{}, ErrNotFound
 	}
 	return c, err

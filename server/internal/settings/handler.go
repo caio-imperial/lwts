@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -142,7 +143,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 
 	var val string
 	err := h.ds.QueryRow(r.Context(), "SELECT value FROM settings WHERE key = $1", key).Scan(&val)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		val = def
 	} else if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal server error")
@@ -655,7 +656,7 @@ func (h *Handler) RevealKey(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var fullKey string
 	err := h.ds.QueryRow(r.Context(), "SELECT key_full FROM api_keys WHERE id = $1", id).Scan(&fullKey)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeErr(w, http.StatusNotFound, "key not found")
 		return
 	}

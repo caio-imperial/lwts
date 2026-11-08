@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -80,7 +81,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (User, error) {
 
 	var u User
 	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.AvatarColor, &u.AvatarURL, &u.Initials, &u.Role, &u.Welcomed, &u.CreatedAt, &u.UpdatedAt)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
 	return u, err
@@ -93,7 +94,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (User, er
 
 	var u User
 	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.AvatarColor, &u.AvatarURL, &u.Initials, &u.Role, &u.Welcomed, &u.CreatedAt, &u.UpdatedAt)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
 	return u, err

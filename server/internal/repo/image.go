@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,7 +79,7 @@ func (r *CardImageRepository) ListByCard(ctx context.Context, cardID string) ([]
 func (r *CardImageRepository) GetMeta(ctx context.Context, id string) (CardImage, error) {
 	row := r.ds.QueryRow(ctx, `SELECT `+cardImageMetaColumns+` FROM card_images WHERE id = $1`, id)
 	img, err := scanCardImageMeta(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return CardImage{}, ErrNotFound
 	}
 	return img, err
@@ -91,7 +92,7 @@ func (r *CardImageRepository) GetData(ctx context.Context, id string) (CardImage
 	var data []byte
 	err := row.Scan(&img.ID, &img.CardID, &img.Filename, &img.ContentType,
 		&img.SizeBytes, &img.UploadedBy, &img.CreatedAt, &data)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return CardImage{}, nil, ErrNotFound
 	}
 	if err != nil {

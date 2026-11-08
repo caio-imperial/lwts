@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -73,10 +74,10 @@ func TestWorkspaceScopedLookups(t *testing.T) {
 		t.Fatalf("GetByKeyInBoard = (%+v, %v), want %s", byKey, err, cardTwo.ID)
 	}
 
-	if _, err := cards.GetByNumber(ctx, boardOne.ID, 99); err != ErrNotFound {
+	if _, err := cards.GetByNumber(ctx, boardOne.ID, 99); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetByNumber(missing) error = %v, want ErrNotFound", err)
 	}
-	if _, err := boards.GetBySlug(ctx, wsOne.ID, "nope"); err != ErrNotFound {
+	if _, err := boards.GetBySlug(ctx, wsOne.ID, "nope"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetBySlug(missing) error = %v, want ErrNotFound", err)
 	}
 }

@@ -3,6 +3,7 @@ package settings
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,7 +61,7 @@ func (h *Handler) GetDiscord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg, err := scanDiscordRow(h, r)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeJSON(w, http.StatusOK, discordConfig{Notify: defaultNotify})
 		return
 	}
@@ -93,7 +94,7 @@ func (h *Handler) PutDiscord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg, err := scanDiscordRow(h, r)
-	isNew := err == db.ErrNoRows
+	isNew := errors.Is(err, db.ErrNoRows)
 	if isNew {
 		cfg.ID = uuid.New().String()
 		cfg.Notify = defaultNotify
@@ -154,7 +155,7 @@ func (h *Handler) TestDiscord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg, err := scanDiscordRow(h, r)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeErr(w, http.StatusBadRequest, "Discord integration not configured yet. Save your settings first.")
 		return
 	}

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -64,7 +65,8 @@ func IsFieldValidationError(err error) (map[string]string, bool) {
 	if err == nil {
 		return nil, false
 	}
-	if e, ok := err.(*FieldValidationError); ok {
+	var e *FieldValidationError
+	if errors.As(err, &e) {
 		return e.Fields, true
 	}
 	return nil, false

@@ -2,6 +2,7 @@ package comment
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/oceanplexian/lwts/server/internal/auth"
@@ -52,7 +53,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Verify card exists and get board ID for SSE
 	card, err := h.cards.GetByID(r.Context(), cardID)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
@@ -104,7 +105,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	cmt, err := h.comments.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "comment not found")
 		return
 	}
@@ -146,7 +147,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	cmt, err := h.comments.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "comment not found")
 		return
 	}

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -69,7 +70,7 @@ func (r *WorkspaceRepository) GetByID(ctx context.Context, id string) (Workspace
 		`SELECT `+workspaceSelectColumns+` FROM workspaces WHERE id = $1`, id)
 
 	w, err := scanWorkspace(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Workspace{}, ErrNotFound
 	}
 	return w, err
@@ -81,7 +82,7 @@ func (r *WorkspaceRepository) GetBySlug(ctx context.Context, slugValue string) (
 		`SELECT `+workspaceSelectColumns+` FROM workspaces WHERE slug = $1`, slugValue)
 
 	w, err := scanWorkspace(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Workspace{}, ErrNotFound
 	}
 	return w, err
@@ -93,7 +94,7 @@ func (r *WorkspaceRepository) GetDefault(ctx context.Context) (Workspace, error)
 		`SELECT `+workspaceSelectColumns+` FROM workspaces ORDER BY created_at, id LIMIT 1`)
 
 	w, err := scanWorkspace(row)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Workspace{}, ErrNotFound
 	}
 	return w, err
@@ -156,7 +157,7 @@ func (r *WorkspaceRepository) uniqueSlugExcept(ctx context.Context, base, exclud
 		var found int
 		err := r.ds.QueryRow(ctx,
 			`SELECT 1 FROM workspaces WHERE slug = $1 AND id <> $2`, candidate, excludeID).Scan(&found)
-		if err == db.ErrNoRows {
+		if errors.Is(err, db.ErrNoRows) {
 			return candidate, nil
 		}
 		if err != nil {

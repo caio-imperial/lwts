@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,7 +15,7 @@ func (r *CardRepository) Move(ctx context.Context, id string, version int, toCol
 		if err == nil {
 			return card, nil
 		}
-		if err == ErrConflict || err == ErrNotFound {
+		if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {
 			return Card{}, err
 		}
 		if isRetryable(err) && attempt < maxRetries-1 {
@@ -41,7 +42,7 @@ func (r *CardRepository) moveOnce(ctx context.Context, id string, version int, t
 	var boardID string
 	var curVersion int
 	if err := row.Scan(&boardID, &curVersion); err != nil {
-		if err == db.ErrNoRows {
+		if errors.Is(err, db.ErrNoRows) {
 			return Card{}, ErrNotFound
 		}
 		return Card{}, err

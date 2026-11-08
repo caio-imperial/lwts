@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -159,7 +160,7 @@ func TestWebhookCRUD(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 	_, err = store.GetWebhook(ctx, wh.ID)
-	if err != db.ErrNoRows {
+	if !errors.Is(err, db.ErrNoRows) {
 		t.Errorf("expected ErrNoRows after delete, got %v", err)
 	}
 }

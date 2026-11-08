@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -132,7 +133,7 @@ func TestUserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := repo.GetByID(ctx, "nonexistent")
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }
@@ -307,7 +308,7 @@ func TestCardOptimisticLock(t *testing.T) {
 	// Update with stale version
 	staleTitle := "Stale"
 	_, err = cards.Update(ctx, card.ID, 1, CardUpdate{Title: &staleTitle})
-	if err != ErrConflict {
+	if !errors.Is(err, ErrConflict) {
 		t.Errorf("err = %v, want ErrConflict", err)
 	}
 }
@@ -410,7 +411,7 @@ func TestCardDelete(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 	_, err := cards.GetByID(ctx, card.ID)
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }

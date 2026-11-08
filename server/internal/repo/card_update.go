@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -104,7 +105,7 @@ func (r *CardRepository) Update(ctx context.Context, id string, version int, fie
 	if n == 0 {
 		// Check if card exists at all
 		_, err := r.GetByID(ctx, id)
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			return Card{}, ErrNotFound
 		}
 		return Card{}, ErrConflict
