@@ -26,6 +26,7 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/middleware"
 	"github.com/oceanplexian/lwts/server/internal/repo"
 	settingshandler "github.com/oceanplexian/lwts/server/internal/settings"
+	"github.com/oceanplexian/lwts/server/internal/spa"
 	"github.com/oceanplexian/lwts/server/internal/sse"
 	webhookhandler "github.com/oceanplexian/lwts/server/internal/webhook"
 	"github.com/oceanplexian/lwts/server/migrations"
@@ -331,18 +332,32 @@ func main() {
 
 	// Static files
 	if cfg.DevMode {
-		// Dev mode: no-cache headers, serves from web/ then web/public/ (mimics Vite publicDir)
+		// Dev mode: no-cache headers, serves from web/ then web/public/ (mimics Vite
+		// publicDir), and falls back to index.html for SPA routes (docs/ROUTES.md).
 		webFS := http.FileServer(http.Dir("web"))
 		publicFS := http.FileServer(http.Dir("web/public"))
 		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasSuffix(r.URL.Path, ".html") || strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".js") || r.URL.Path == "/" {
 				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 			}
-			if _, err := os.Stat("web" + r.URL.Path); err == nil || r.URL.Path == "/" {
+			if r.URL.Path == "/" {
 				webFS.ServeHTTP(w, r)
-			} else {
-				publicFS.ServeHTTP(w, r)
+				return
 			}
+			if _, err := os.Stat("web" + r.URL.Path); err == nil {
+				webFS.ServeHTTP(w, r)
+				return
+			}
+			if _, err := os.Stat("web/public" + r.URL.Path); err == nil {
+				publicFS.ServeHTTP(w, r)
+				return
+			}
+			if spa.ShouldServeIndex(r.Method, r.URL.Path) {
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				http.ServeFile(w, r, "web/index.html")
+				return
+			}
+			http.NotFound(w, r)
 		}))
 	} else {
 		// Production: serve Vite build output from STATIC_DIR, SPA fallback to index.html.
@@ -362,7 +377,7 @@ func main() {
 				serveIndex(w, r, indexHTML, cfg.StaticDir)
 				return
 			}
-			if _, err := os.Stat(cfg.StaticDir + r.URL.Path); os.IsNotExist(err) && !strings.HasPrefix(r.URL.Path, "/api/") && !strings.Contains(r.URL.Path, ".") {
+			if _, err := os.Stat(cfg.StaticDir + r.URL.Path); os.IsNotExist(err) && spa.ShouldServeIndex(r.Method, r.URL.Path) {
 				serveIndex(w, r, indexHTML, cfg.StaticDir)
 				return
 			}
