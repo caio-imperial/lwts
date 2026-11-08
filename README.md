@@ -51,7 +51,6 @@
 - **Dual database support** — SQLite for single-node, PostgreSQL for production
 - **Single binary** — embed the frontend at build time, deploy one file
 - **Multi-arch Docker** — `linux/amd64` and `linux/arm64` images
-- **AWS Lambda support** — deploy as a serverless function with Lambda Web Adapter
 
 ## Quick Start
 
@@ -403,16 +402,6 @@ place but you'll need to drop it manually (`ALTER TABLE cards DROP COLUMN
 embedding`) and let the server recreate it.
 
 ## Deployment
-
-### Lambda (Serverless)
-
-LWTS can run on AWS Lambda with the [Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter). Terraform config is included:
-
-```bash
-make lambda-build    # build Lambda container
-make lambda-push     # push to ECR
-cd tf && terraform apply
-```
 
 ### Production Checklist
 

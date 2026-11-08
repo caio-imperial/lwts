@@ -13,7 +13,7 @@ The repository hosts three products and three toolchains:
 | `web/` | Kanban SPA (vanilla JS + Vite) | Node 20 (build/test only) |
 | `docs/` | Landing page published via GitHub Pages (`CNAME`) | plain HTML/CSS/JS |
 | `tests/` | Manual agent UI specs + frontend unit/E2E tests | Node |
-| `tf/`, `Dockerfile*`, `docker-compose*.yml` | packaging and deploy (Docker, Lambda, Terraform) | Docker/Terraform |
+| `Dockerfile*`, `docker-compose*.yml` | packaging and deploy (Docker) | Docker |
 
 The production runtime is **only the Go binary**; Node does not run in
 production.
@@ -142,7 +142,6 @@ Frontend test dependencies (`jsdom`, `postcss`, `@playwright/test`) live in the
 - `make verify-full` — `verify` + E2E.
 - `Dockerfile` — Vite stage + Go stage + Alpine image; the frontend build is
   copied to `/static` and served by the binary through `STATIC_DIR`.
-- `Dockerfile.lambda` / `tf/` — serverless deploy with Lambda Web Adapter.
 - `docs/` — static landing page (GitHub Pages).
 
 ## Known inconsistencies

@@ -16,8 +16,3 @@ __pycache__/
 .vite/
 *.db
 server/tmp/
-tf/.terraform/
-tf/terraform.tfstate
-tf/terraform.tfstate.backup
-tf/terraform.tfstate.*
-tf/tfplan
