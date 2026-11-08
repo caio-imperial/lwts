@@ -998,7 +998,7 @@ function _sseRender() {
     return;
   }
 
-  window.render();
+  window.renderViews ? window.renderViews() : window.render();
   injectDueDateChips();
   applyFilters();
 }

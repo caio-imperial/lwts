@@ -47,3 +47,22 @@ test('create card on a concrete board shows it immediately', async ({ page }) =>
   await expect(page.locator('#board')).toContainText(title);
   expect(problems).toEqual([]);
 });
+
+test('create card in list view updates the list immediately', async ({ page }) => {
+  const problems = watchConsole(page);
+  await login(page);
+
+  await page.click('.view-switcher-btn[data-view="list"]');
+  await expect(page.locator('#list-view')).toBeVisible();
+  const rowsBefore = await page.locator('#list-view .list-row').count();
+
+  const title = 'List view card ' + Date.now();
+  await openCreateCard(page);
+  await page.fill('#detail-title', title);
+  await page.click('#create-submit-btn');
+
+  await expect(page.locator('#detail-modal')).not.toHaveClass(/active/);
+  await expect(page.locator('#list-view')).toContainText(title);
+  expect(await page.locator('#list-view .list-row').count()).toBe(rowsBefore + 1);
+  expect(problems).toEqual([]);
+});

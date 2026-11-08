@@ -745,6 +745,17 @@ function render() {
 
 }
 
+// Renders the active view. The board is always kept in sync (it is the source
+// of truth for drag&drop and partial updates), and the list view is re-rendered
+// when it is the visible mode.
+function renderViews() {
+  render();
+  if (typeof window.currentView !== 'undefined' && window.currentView === 'list'
+    && typeof window.renderListView === 'function') {
+    window.renderListView();
+  }
+}
+
 function _renderStandardBoard(frag) {
   COLUMNS.forEach((col, ci) => {
     const cards = state[col.id] || [];
@@ -1349,7 +1360,7 @@ function submitCreateFromDetail() {
     state[col] = state[col] || [];
     state[col].push(card);
     _renderAnimateCards = true;
-    save(); window.render();
+    save(); window.renderViews();
   }
 
   _pendingDescription = '';
@@ -1385,7 +1396,7 @@ function submitCreateFromDetail() {
           colCards.push(fromAPI(serverCard));
         }
         cardIndex[serverCard.id] = serverCard;
-        save(); window.render();
+        save(); window.renderViews();
       } else {
         const boardName = boardList.find(b => b.id === targetBoardId)?.name || targetBoardId;
         window.Toast.success('Card created on ' + boardName);
@@ -1408,7 +1419,7 @@ function submitCreateFromDetail() {
       window.Toast.error('Failed to create card: ' + (err.message || 'unknown error'));
       if (isCurrentBoard) {
         state[col] = state[col].filter(c => c.id !== tempId);
-        save(); window.render();
+        save(); window.renderViews();
       }
     });
   }
@@ -3230,6 +3241,7 @@ window.getDefaultBoardId = getDefaultBoardId;
 window.loadFromLocalStorage = loadFromLocalStorage;
 window.save = save;
 window.render = render;
+window.renderViews = renderViews;
 window._scheduleColumnHeightSync = _scheduleColumnHeightSync;
 window.createCardEl = createCardEl;
 window.onDragStart = onDragStart;
