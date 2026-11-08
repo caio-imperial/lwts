@@ -11,7 +11,7 @@ The repository hosts three products and three toolchains:
 |---|---|---|
 | `server/` | HTTP API, SSE/WebSocket, admin CLI and migrations | Go 1.25+ |
 | `web/` | Kanban SPA (vanilla JS + Vite) | Node 20 (build/test only) |
-| `docs/` | Landing page published via GitHub Pages (`CNAME`) | plain HTML/CSS/JS |
+| `docs/` | Landing page published via GitHub Pages | plain HTML/CSS/JS |
 | `tests/` | Manual agent UI specs + frontend unit/E2E tests | Node |
 | `Dockerfile*`, `docker-compose*.yml` | packaging and deploy (Docker) | Docker |
 
@@ -146,16 +146,14 @@ Frontend test dependencies (`jsdom`, `postcss`, `@playwright/test`) live in the
 
 ## Known inconsistencies
 
-1. The README used to mention `server/internal/api/`, which **does not exist**
-   (fixed).
-2. The README says "embed the frontend at build time", but assets are served
-   from `STATIC_DIR` (there is no `go:embed` of `web/dist`).
-3. Besides `make run`, the server can be started by `scripts/start.sh` and
-   `tests/start-test-server.sh`.
-4. `docs/` is the marketing site, not developer documentation.
-5. Files over 500 lines are common; a file-size gate and a mechanical split are
-   planned.
-6. Backup/restore does not include the `workspaces` table; restored boards are
+1. The README says "embed the frontend at build time", but assets are served
+   from `STATIC_DIR` (there is no `go:embed` of `web/dist`); the packaged
+   Docker image and the release archives copy the built frontend there.
+2. Besides `make run`, the server can be started by `tests/start-test-server.sh`.
+3. `docs/` is the marketing site, not developer documentation.
+4. Files over 500 lines are common; `make check-size` gates new ones and a
+   mechanical split is in progress (`scripts/file-size-allowlist.txt`).
+5. Backup/restore does not include the `workspaces` table; restored boards are
    attached to the default workspace by the identity backfill.
-7. Settings are still global: Profile (user) and workspace settings are not
+6. Settings are still global: Profile (user) and workspace settings are not
    separated yet.
