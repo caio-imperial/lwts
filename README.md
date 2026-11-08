@@ -316,34 +316,16 @@ disables cleanup).
 make dev          # hot-reload with air
 make test         # run unit tests
 make test-pg      # integration tests (requires PostgreSQL)
+make verify       # full local gate: build + vet + tests + frontend build
 make lint         # golangci-lint
 make build        # build binary to bin/lwts
 ```
 
 ### Project Structure
 
-```
-server/
-├── cmd/main.go              # entrypoint, route wiring
-├── internal/
-│   ├── api/                 # shared API types
-│   ├── auth/                # JWT auth, login, registration
-│   ├── board/               # board CRUD handlers
-│   ├── card/                # card CRUD handlers
-│   ├── comment/             # comment handlers
-│   ├── config/              # env-based configuration
-│   ├── discord/             # Discord notification integration
-│   ├── middleware/           # CORS, logging, body limits
-│   ├── settings/            # workspace settings, API keys, export
-│   ├── sse/                 # Server-Sent Events hub
-│   └── webhook/             # webhook dispatch, retry, delivery logs
-web/
-├── index.html               # SPA shell
-├── src/                     # vanilla JS modules
-└── styles/                  # CSS (theme, board, detail, settings, responsive)
-docs/                        # landing page
-tf/                          # Terraform for Lambda deployment
-```
+The repository hosts the Go server, the SPA and the landing page. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the directory map and
+[docs/ROUTES.md](docs/ROUTES.md) for the frontend route contract.
 
 ## Semantic Search
 
