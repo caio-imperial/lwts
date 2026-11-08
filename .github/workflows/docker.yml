@@ -1,9 +1,8 @@
 name: Docker
 
-# Fork: validates that the image still builds. Publishing to a registry is
-# intentionally disabled (no upstream registry credentials here). If you later
-# want images in your own GHCR, add a `packages: write` permission and a
-# login/push step pointing at ghcr.io/<your-user>/lwts.
+# Validates that the image still builds. Images are built locally only; there
+# is no registry publish step. Add one (plus a login step and `push: true`)
+# when a registry target is decided.
 on:
   push:
     branches: [main]
