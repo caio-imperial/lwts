@@ -9,6 +9,8 @@ linters:
   default: standard
   enable:
     - copyloopvar
+    - errorlint
+    - gocritic
     - misspell
     - nilerr
     - nolintlint

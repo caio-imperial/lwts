@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -93,7 +94,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	webhookID := r.PathValue("webhookID")
 
 	wh, err := h.store.GetWebhook(r.Context(), webhookID)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "webhook not found")
 		return
 	}
@@ -124,7 +125,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wh, err := h.store.UpdateWebhook(r.Context(), webhookID, WebhookUpdate(req))
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "webhook not found")
 		return
 	}
@@ -143,7 +144,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	webhookID := r.PathValue("webhookID")
 
 	err := h.store.DeleteWebhook(r.Context(), webhookID)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "webhook not found")
 		return
 	}
@@ -159,7 +160,7 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 	webhookID := r.PathValue("webhookID")
 
 	wh, err := h.store.GetWebhook(r.Context(), webhookID)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "webhook not found")
 		return
 	}

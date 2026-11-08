@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -88,10 +89,10 @@ func TestWorkspaceNotFound(t *testing.T) {
 	workspaces := NewWorkspaceRepository(ds)
 	ctx := context.Background()
 
-	if _, err := workspaces.GetByID(ctx, "not-a-uuid"); err != ErrNotFound {
+	if _, err := workspaces.GetByID(ctx, "not-a-uuid"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetByID err = %v, want ErrNotFound", err)
 	}
-	if _, err := workspaces.GetBySlug(ctx, "missing"); err != ErrNotFound {
+	if _, err := workspaces.GetBySlug(ctx, "missing"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetBySlug err = %v, want ErrNotFound", err)
 	}
 }
@@ -117,7 +118,7 @@ func TestWorkspaceRename(t *testing.T) {
 	if renamed.Name != "Renamed" || renamed.Slug != "renamed" {
 		t.Fatalf("renamed = %+v", renamed)
 	}
-	if _, err := workspaces.GetBySlug(ctx, "original"); err != ErrNotFound {
+	if _, err := workspaces.GetBySlug(ctx, "original"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("old slug error = %v, want ErrNotFound", err)
 	}
 	if _, err := workspaces.GetBySlug(ctx, "renamed"); err != nil {
@@ -142,7 +143,7 @@ func TestWorkspaceRename(t *testing.T) {
 		t.Errorf("second workspace disappeared: %v", err)
 	}
 
-	if _, err := workspaces.UpdateName(ctx, "not-a-uuid", "X"); err != ErrNotFound {
+	if _, err := workspaces.UpdateName(ctx, "not-a-uuid", "X"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("rename unknown id error = %v, want ErrNotFound", err)
 	}
 }

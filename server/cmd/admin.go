@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -20,16 +21,18 @@ import (
 
 // ── Users ────────────────────────────────────────────────────────────────────
 
-func runUsers() {
+func runUsers() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	users := repo.NewUserRepository(ds)
 	list, err := users.List(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "list users: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("list users: %w", err)
 	}
 
 	fmt.Printf("%-36s  %-20s  %-30s  %-8s  %s\n", "ID", "NAME", "EMAIL", "ROLE", "CREATED")
@@ -39,12 +42,12 @@ func runUsers() {
 			u.ID, truncate(u.Name, 20), truncate(u.Email, 30), u.Role, u.CreatedAt.Format("2006-01-02 15:04"))
 	}
 	fmt.Printf("\n%d user(s)\n", len(list))
+	return nil
 }
 
-func runUserCreate() {
+func runUserCreate() error {
 	if len(os.Args) < 5 {
-		fmt.Fprintf(os.Stderr, "usage: lwts user-create <name> <email> <password> [--role=member]\n")
-		os.Exit(1)
+		return errors.New("usage: lwts user-create <name> <email> <password> [--role=member]")
 	}
 	name := os.Args[2]
 	email := os.Args[3]
@@ -57,103 +60,107 @@ func runUserCreate() {
 	}
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	hash, err := auth.HashPassword(password)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "hash: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("hash: %w", err)
 	}
 
 	users := repo.NewUserRepository(ds)
 	u, err := users.Create(ctx, name, email, hash)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "create user: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("create user: %w", err)
 	}
 
 	// Set role if not default
 	if role != "member" {
 		_, err = users.Update(ctx, u.ID, repo.UserUpdate{Role: &role})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "set role: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("set role: %w", err)
 		}
 	}
 
 	fmt.Printf("created user %s (%s) role=%s id=%s\n", u.Name, u.Email, role, u.ID)
+	return nil
 }
 
-func runUserDelete() {
+func runUserDelete() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts user-delete <email>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts user-delete <email>")
 	}
 	email := os.Args[2]
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	users := repo.NewUserRepository(ds)
 	u, err := users.GetByEmail(ctx, email)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "user not found: %s\n", email)
-		os.Exit(1)
+		return fmt.Errorf("user not found: %s", email)
 	}
 
 	if err := users.Delete(ctx, u.ID); err != nil {
-		fmt.Fprintf(os.Stderr, "delete: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("delete: %w", err)
 	}
 	fmt.Printf("deleted user %s (%s)\n", u.Name, u.Email)
+	return nil
 }
 
-func runResetPassword() {
+func runResetPassword() error {
 	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "usage: lwts reset-password <email> <new-password>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts reset-password <email> <new-password>")
 	}
 	email := os.Args[2]
 	newPassword := os.Args[3]
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	hash, err := auth.HashPassword(newPassword)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "hash: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("hash: %w", err)
 	}
 
 	affected, err := ds.Exec(ctx, "UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = LOWER($2)", hash, email)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "update: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("update: %w", err)
 	}
 	if affected == 0 {
-		fmt.Fprintf(os.Stderr, "no user found with email: %s\n", email)
-		os.Exit(1)
+		return fmt.Errorf("no user found with email: %s", email)
 	}
 
 	_, _ = ds.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = (SELECT id FROM users WHERE LOWER(email) = LOWER($1))", email)
 	fmt.Printf("password reset for %s\n", email)
+	return nil
 }
 
 // ── Boards ───────────────────────────────────────────────────────────────────
 
-func runBoards() {
+func runBoards() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	boards := repo.NewBoardRepository(ds)
 	list, err := boards.List(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "list boards: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("list boards: %w", err)
 	}
 
 	// Get card counts per board
@@ -172,46 +179,50 @@ func runBoards() {
 			b.ID, truncate(b.Name, 25), b.ProjectKey, truncate(ownerName, 20), count)
 	}
 	fmt.Printf("\n%d board(s)\n", len(list))
+	return nil
 }
 
-func runBoardCreate() {
+func runBoardCreate() error {
 	if len(os.Args) < 5 {
-		fmt.Fprintf(os.Stderr, "usage: lwts board-create <name> <project_key> <owner_email>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts board-create <name> <project_key> <owner_email>")
 	}
 	name := os.Args[2]
 	projectKey := os.Args[3]
 	ownerEmail := os.Args[4]
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	users := repo.NewUserRepository(ds)
 	owner, err := users.GetByEmail(ctx, ownerEmail)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "owner not found: %s\n", ownerEmail)
-		os.Exit(1)
+		return fmt.Errorf("owner not found: %s", ownerEmail)
 	}
 
 	boards := repo.NewBoardRepository(ds)
 	b, err := boards.Create(ctx, name, projectKey, owner.ID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "create board: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("create board: %w", err)
 	}
 	fmt.Printf("created board %q key=%s id=%s\n", b.Name, b.ProjectKey, b.ID)
+	return nil
 }
 
-func runBoardDelete() {
+func runBoardDelete() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts board-delete <id>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts board-delete <id>")
 	}
 	boardID := os.Args[2]
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	// Delete comments on cards in this board
@@ -221,10 +232,10 @@ func runBoardDelete() {
 	// Delete the board
 	boards := repo.NewBoardRepository(ds)
 	if err := boards.Delete(ctx, boardID); err != nil {
-		fmt.Fprintf(os.Stderr, "delete board: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("delete board: %w", err)
 	}
 	fmt.Printf("deleted board %s and all its cards/comments\n", boardID)
+	return nil
 }
 
 // ── Cards ────────────────────────────────────────────────────────────────────
@@ -251,27 +262,27 @@ func resolveBoard(ctx context.Context, ds db.Datasource, idOrName string) (repo.
 	return repo.Board{}, fmt.Errorf("board not found: %s", idOrName)
 }
 
-func runCards() {
+func runCards() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts cards <board_id_or_name>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts cards <board_id_or_name>")
 	}
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	board, err := resolveBoard(ctx, ds, os.Args[2])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	cards := repo.NewCardRepository(ds)
 	list, err := cards.ListByBoard(ctx, board.ID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "list cards: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("list cards: %w", err)
 	}
 
 	// Build user lookup
@@ -326,6 +337,7 @@ func runCards() {
 		}
 		fmt.Println()
 	}
+	return nil
 }
 
 func resolveCard(ctx context.Context, ds db.Datasource, keyOrID string) (repo.Card, error) {
@@ -358,20 +370,21 @@ func resolveCard(ctx context.Context, ds db.Datasource, keyOrID string) (repo.Ca
 	return repo.Card{}, fmt.Errorf("card not found: %s", keyOrID)
 }
 
-func runCardShow() {
+func runCardShow() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts card-show <key_or_id>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts card-show <key_or_id>")
 	}
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	card, err := resolveCard(ctx, ds, os.Args[2])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	users := repo.NewUserRepository(ds)
@@ -433,22 +446,24 @@ func runCardShow() {
 			fmt.Printf("  [%s] %s:\n    %s\n\n", c.CreatedAt.Format("2006-01-02 15:04"), author, c.Body)
 		}
 	}
+	return nil
 }
 
-func runCardDelete() {
+func runCardDelete() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts card-delete <key_or_id>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts card-delete <key_or_id>")
 	}
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	card, err := resolveCard(ctx, ds, os.Args[2])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Delete comments first
@@ -456,30 +471,31 @@ func runCardDelete() {
 
 	cards := repo.NewCardRepository(ds)
 	if err := cards.Delete(ctx, card.ID); err != nil {
-		fmt.Fprintf(os.Stderr, "delete: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("delete: %w", err)
 	}
 	fmt.Printf("deleted card %s (%s)\n", card.Key, card.Title)
+	return nil
 }
 
 // ── System ───────────────────────────────────────────────────────────────────
 
-func runSeedTest() {
+func runSeedTest() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 
 	// Create or find a test owner
 	users := repo.NewUserRepository(ds)
 	list, err := users.List(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "list users: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("list users: %w", err)
 	}
 
 	var ownerID string
@@ -494,28 +510,29 @@ func runSeedTest() {
 			// bcrypt hash of "testpass123"
 			"$2b$10$G1Gt3Zvd76mWYPu8TDXrn.hU5c33FaVkkwDfu8b0FWZmlTmCRUgZW")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "create test owner: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("create test owner: %w", err)
 		}
 		ownerID = u.ID
 		fmt.Printf("created test owner: %s\n", u.Email)
 	}
 
 	if err := repo.SeedTestData(ctx, ds, ownerID); err != nil {
-		fmt.Fprintf(os.Stderr, "seed-test: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed-test: %w", err)
 	}
+	return nil
 }
 
-func runReseed() {
+func runReseed() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	// Run migrations first
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 
 	// Wipe in FK order
@@ -528,20 +545,22 @@ func runReseed() {
 	users := repo.NewUserRepository(ds)
 	list, err := users.List(ctx)
 	if err != nil || len(list) == 0 {
-		fmt.Fprintf(os.Stderr, "no users exist — create a user first\n")
-		os.Exit(1)
+		return errors.New("no users exist — create a user first")
 	}
 
 	if err := repo.SeedDemo(ctx, ds, list[0].ID); err != nil {
-		fmt.Fprintf(os.Stderr, "seed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed: %w", err)
 	}
 	fmt.Printf("reseeded demo data for user %s (%s)\n", list[0].Name, list[0].Email)
+	return nil
 }
 
-func runStats() {
+func runStats() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	var userCount, boardCount, cardCount, commentCount int
@@ -580,6 +599,7 @@ func runStats() {
 			fmt.Printf("  %-20s %d\n", pri, cnt)
 		}
 	}
+	return nil
 }
 
 // ── Backup / Restore ─────────────────────────────────────────────────────────
@@ -606,29 +626,29 @@ type backupUser struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-func runBackup() {
+func runBackup() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts backup <output_path>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts backup <output_path>")
 	}
 	outputPath := os.Args[2]
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	// Users — need password_hash included
 	rows, err := ds.Query(ctx, "SELECT id, email, name, password_hash, avatar_color, avatar_url, initials, role, created_at, updated_at FROM users ORDER BY created_at")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "query users: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("query users: %w", err)
 	}
 	var users []backupUser
 	for rows.Next() {
 		var u backupUser
 		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.AvatarColor, &u.AvatarURL, &u.Initials, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
-			fmt.Fprintf(os.Stderr, "scan user: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("scan user: %w", err)
 		}
 		users = append(users, u)
 	}
@@ -637,8 +657,7 @@ func runBackup() {
 	boardRepo := repo.NewBoardRepository(ds)
 	boards, err := boardRepo.List(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "list boards: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("list boards: %w", err)
 	}
 
 	cardRepo := repo.NewCardRepository(ds)
@@ -646,8 +665,7 @@ func runBackup() {
 	for _, b := range boards {
 		cards, err := cardRepo.ListByBoard(ctx, b.ID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "list cards for board %s: %v\n", b.ID, err)
-			os.Exit(1)
+			return fmt.Errorf("list cards for board %s: %w", b.ID, err)
 		}
 		allCards = append(allCards, cards...)
 	}
@@ -657,8 +675,7 @@ func runBackup() {
 	for _, c := range allCards {
 		comments, err := commentRepo.ListByCard(ctx, c.ID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "list comments for card %s: %v\n", c.ID, err)
-			os.Exit(1)
+			return fmt.Errorf("list comments for card %s: %w", c.ID, err)
 		}
 		allComments = append(allComments, comments...)
 	}
@@ -673,46 +690,44 @@ func runBackup() {
 
 	out, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "marshal: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("marshal: %w", err)
 	}
 
 	if err := os.WriteFile(outputPath, out, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "write: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("write: %w", err)
 	}
 
 	fmt.Printf("backed up %d users, %d boards, %d cards, %d comments to %s\n",
 		len(users), len(boards), len(allCards), len(allComments), outputPath)
+	return nil
 }
 
-func runRestore() {
+func runRestore() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts restore <input_path>\n")
-		os.Exit(1)
+		return errors.New("usage: lwts restore <input_path>")
 	}
 	inputPath := os.Args[2]
 
 	raw, err := os.ReadFile(inputPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "read: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("read: %w", err)
 	}
 
 	var data backupData
 	if err := json.Unmarshal(raw, &data); err != nil {
-		fmt.Fprintf(os.Stderr, "parse: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("parse: %w", err)
 	}
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	// Run migrations first
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 
 	// Wipe in FK order (comments, cards, boards — not users per spec)
@@ -727,8 +742,7 @@ func runRestore() {
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			b.ID, b.Name, b.ProjectKey, b.OwnerID, b.Columns, b.Settings, b.CreatedAt, b.UpdatedAt)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "insert board %s: %v\n", b.ID, err)
-			os.Exit(1)
+			return fmt.Errorf("insert board %s: %w", b.ID, err)
 		}
 	}
 
@@ -736,8 +750,7 @@ func runRestore() {
 	for _, c := range data.Cards {
 		customFieldsJSON, err := repo.MarshalCustomFieldsJSON(c.CustomFields)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "marshal custom fields for %s: %v\n", c.Key, err)
-			os.Exit(1)
+			return fmt.Errorf("marshal custom fields for %s: %w", c.Key, err)
 		}
 		_, err = ds.Exec(ctx,
 			`INSERT INTO cards (id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
@@ -747,8 +760,7 @@ func runRestore() {
 			c.AssigneeID, c.ReporterID, c.Points, c.Position, c.Key, c.Version,
 			c.DueDate, c.RelatedCardIDs, c.BlockedCardIDs, c.EpicID, customFieldsJSON, c.CreatedAt, c.UpdatedAt)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "insert card %s: %v\n", c.Key, err)
-			os.Exit(1)
+			return fmt.Errorf("insert card %s: %w", c.Key, err)
 		}
 	}
 
@@ -759,26 +771,24 @@ func runRestore() {
 			 VALUES ($1, $2, $3, $4, $5, $6)`,
 			cm.ID, cm.CardID, cm.AuthorID, cm.Body, cm.CreatedAt, cm.UpdatedAt)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "insert comment %s: %v\n", cm.ID, err)
-			os.Exit(1)
+			return fmt.Errorf("insert comment %s: %w", cm.ID, err)
 		}
 	}
 
 	// Old backups do not carry workspace/slug/number/card_seq. Rebuild the
 	// identity columns after the inserts; the pass is idempotent.
 	if err := db.BackfillIdentity(ctx, ds); err != nil {
-		fmt.Fprintf(os.Stderr, "backfill identity after restore: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("backfill identity after restore: %w", err)
 	}
 
 	fmt.Printf("restored %d boards, %d cards, %d comments from %s (exported %s)\n",
 		len(data.Boards), len(data.Cards), len(data.Comments), inputPath, data.ExportedAt)
+	return nil
 }
 
-func runAPIKey() {
+func runAPIKey() error {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: lwts api-key <email> [name]\n")
-		os.Exit(1)
+		return errors.New("usage: lwts api-key <email> [name]")
 	}
 	email := os.Args[2]
 	keyName := "CLI-generated key"
@@ -787,14 +797,16 @@ func runAPIKey() {
 	}
 
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 
 	users := repo.NewUserRepository(ds)
 	u, err := users.GetByEmail(ctx, email)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "user not found: %s\n", email)
-		os.Exit(1)
+		return fmt.Errorf("user not found: %s", email)
 	}
 
 	rawKey := make([]byte, 32)
@@ -813,11 +825,11 @@ func runAPIKey() {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		id, u.ID, keyName, keyHash, prefix, fullKey, "{}", now)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "insert api_key: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("insert api_key: %w", err)
 	}
 
 	fmt.Println(fullKey)
+	return nil
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -77,7 +78,7 @@ func (r *BoardRepository) GetByID(ctx context.Context, id string) (Board, error)
 	var b Board
 	err := row.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings,
 		&b.WorkspaceID, &b.Slug, &b.CardSeq, &b.CreatedAt, &b.UpdatedAt)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Board{}, ErrNotFound
 	}
 	return b, err
@@ -147,7 +148,7 @@ func (r *BoardRepository) GetBySlug(ctx context.Context, workspaceID, slugValue 
 	var b Board
 	err := row.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings,
 		&b.WorkspaceID, &b.Slug, &b.CardSeq, &b.CreatedAt, &b.UpdatedAt)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Board{}, ErrNotFound
 	}
 	return b, err
@@ -242,7 +243,7 @@ func (r *BoardRepository) Delete(ctx context.Context, id string) error {
 func (r *BoardRepository) defaultWorkspaceID(ctx context.Context) (string, error) {
 	var id string
 	err := r.ds.QueryRow(ctx, `SELECT id FROM workspaces ORDER BY created_at LIMIT 1`).Scan(&id)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return "", fmt.Errorf("no default workspace: run migrations before creating boards")
 	}
 	if err != nil {
@@ -256,7 +257,7 @@ func (r *BoardRepository) defaultWorkspaceID(ctx context.Context) (string, error
 func (r *BoardRepository) boardWorkspaceID(ctx context.Context, boardID string) (string, error) {
 	var workspaceID *string
 	err := r.ds.QueryRow(ctx, `SELECT workspace_id FROM boards WHERE id = $1`, boardID).Scan(&workspaceID)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return "", ErrNotFound
 	}
 	if err != nil {
@@ -278,7 +279,7 @@ func (r *BoardRepository) uniqueBoardSlug(ctx context.Context, workspaceID, base
 		err := r.ds.QueryRow(ctx,
 			`SELECT 1 FROM boards WHERE workspace_id = $1 AND slug = $2 AND id <> $3`,
 			workspaceID, candidate, excludeID).Scan(&found)
-		if err == db.ErrNoRows {
+		if errors.Is(err, db.ErrNoRows) {
 			return candidate, nil
 		}
 		if err != nil {

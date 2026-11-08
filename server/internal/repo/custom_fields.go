@@ -2,6 +2,7 @@ package repo
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -64,7 +65,8 @@ func IsFieldValidationError(err error) (map[string]string, bool) {
 	if err == nil {
 		return nil, false
 	}
-	if e, ok := err.(*FieldValidationError); ok {
+	var e *FieldValidationError
+	if errors.As(err, &e) {
 		return e.Fields, true
 	}
 	return nil, false
@@ -173,23 +175,25 @@ func ValidateCustomFieldDefinitions(defs []CustomFieldDefinition) ([]CustomField
 		def.Name = strings.TrimSpace(def.Name)
 		def.Type = normalizeCustomFieldType(def.Type)
 
-		if def.ID == "" {
+		switch {
+		case def.ID == "":
 			fields[prefix+".id"] = "required"
-		} else if !customFieldIDRe.MatchString(def.ID) {
+		case !customFieldIDRe.MatchString(def.ID):
 			fields[prefix+".id"] = "must start with a lowercase letter and contain only lowercase letters, numbers, underscores, or hyphens"
-		} else if reservedFieldIDs[def.ID] {
+		case reservedFieldIDs[def.ID]:
 			fields[prefix+".id"] = "reserved field id"
-		} else if seenIDs[def.ID] {
+		case seenIDs[def.ID]:
 			fields[prefix+".id"] = "duplicate field id"
 		}
 		seenIDs[def.ID] = true
 
 		nameKey := strings.ToLower(def.Name)
-		if def.Name == "" {
+		switch {
+		case def.Name == "":
 			fields[prefix+".name"] = "required"
-		} else if len(def.Name) > MaxCustomFieldNameLength {
+		case len(def.Name) > MaxCustomFieldNameLength:
 			fields[prefix+".name"] = fmt.Sprintf("must be %d characters or fewer", MaxCustomFieldNameLength)
-		} else if seenNames[nameKey] {
+		case seenNames[nameKey]:
 			fields[prefix+".name"] = "duplicate field name"
 		}
 		seenNames[nameKey] = true
@@ -389,21 +393,23 @@ func validateCustomFieldOptions(prefix string, options []CustomFieldOption) ([]C
 		if opt.ID == "" {
 			opt.ID = slugifyCustomFieldID(opt.Label, "option")
 		}
-		if opt.ID == "" {
+		switch {
+		case opt.ID == "":
 			fields[itemPrefix+".id"] = "required"
-		} else if !customFieldIDRe.MatchString(opt.ID) {
+		case !customFieldIDRe.MatchString(opt.ID):
 			fields[itemPrefix+".id"] = "must start with a lowercase letter and contain only lowercase letters, numbers, underscores, or hyphens"
-		} else if seenIDs[opt.ID] {
+		case seenIDs[opt.ID]:
 			fields[itemPrefix+".id"] = "duplicate option id"
 		}
 		seenIDs[opt.ID] = true
 
 		labelKey := strings.ToLower(opt.Label)
-		if opt.Label == "" {
+		switch {
+		case opt.Label == "":
 			fields[itemPrefix+".label"] = "required"
-		} else if len(opt.Label) > MaxCustomFieldNameLength {
+		case len(opt.Label) > MaxCustomFieldNameLength:
 			fields[itemPrefix+".label"] = fmt.Sprintf("must be %d characters or fewer", MaxCustomFieldNameLength)
-		} else if seenLabels[labelKey] {
+		case seenLabels[labelKey]:
 			fields[itemPrefix+".label"] = "duplicate option label"
 		}
 		seenLabels[labelKey] = true

@@ -2,6 +2,7 @@ package embed
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -72,7 +73,7 @@ func (h *Handler) Backfill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.StartBackfill(32); err != nil {
-		if err == ErrBackfillRunning {
+		if errors.Is(err, ErrBackfillRunning) {
 			writeJSON(w, http.StatusConflict, map[string]string{
 				"error": "backfill already running; poll /api/v1/embed/status for progress",
 			})

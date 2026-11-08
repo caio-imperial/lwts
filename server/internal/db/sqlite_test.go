@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"testing"
 
@@ -128,7 +129,7 @@ func TestSQLiteNoRows(t *testing.T) {
 
 	var id int
 	err := ds.QueryRow(ctx, "SELECT id FROM empty WHERE id = 1").Scan(&id)
-	if err != ErrNoRows {
+	if !errors.Is(err, ErrNoRows) {
 		t.Fatalf("expected ErrNoRows, got %v", err)
 	}
 }

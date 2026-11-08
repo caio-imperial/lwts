@@ -48,13 +48,13 @@ func TestRepositoriesRejectNonUUIDIDs(t *testing.T) {
 		t.Fatalf("create board: %v", err)
 	}
 
-	if _, err := boards.GetByID(ctx, "not-a-uuid"); err != ErrNotFound {
+	if _, err := boards.GetByID(ctx, "not-a-uuid"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("GetByID(non-uuid) error = %v, want ErrNotFound", err)
 	}
 	if _, err := boards.GetByID(ctx, board.ID); err != nil {
 		t.Errorf("GetByID(uuid) error = %v, want nil", err)
 	}
-	if _, err := cards.GetByID(ctx, "not-a-uuid"); err != ErrNotFound {
+	if _, err := cards.GetByID(ctx, "not-a-uuid"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("card GetByID(non-uuid) error = %v, want ErrNotFound", err)
 	}
 	if list, err := cards.ListByBoard(ctx, "not-a-uuid"); err != nil || len(list) != 0 {

@@ -90,7 +90,7 @@ func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardC
 	var projectKey string
 	var number int
 	if err := row.Scan(&projectKey, &number); err != nil {
-		if err == db.ErrNoRows {
+		if errors.Is(err, db.ErrNoRows) {
 			return Card{}, fmt.Errorf("board not found: %s", boardID)
 		}
 		return Card{}, err

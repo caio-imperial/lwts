@@ -5,6 +5,7 @@ package repo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -92,7 +93,7 @@ func TestCardImageRoundTripIntegration(t *testing.T) {
 	if err := images.Delete(ctx, img.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := images.GetMeta(ctx, img.ID); err != ErrNotFound {
+	if _, err := images.GetMeta(ctx, img.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("after delete err = %v, want ErrNotFound", err)
 	}
 }

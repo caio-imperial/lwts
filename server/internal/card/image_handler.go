@@ -170,7 +170,7 @@ func (h *Handler) GetImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	img, data, err := h.images.GetData(r.Context(), r.PathValue("imageId"))
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "image not found")
 		return
 	}
@@ -212,7 +212,7 @@ func (h *Handler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	img, err := h.images.GetMeta(r.Context(), r.PathValue("imageId"))
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "image not found")
 		return
 	}

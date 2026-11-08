@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,73 +39,73 @@ var commit = "unknown"
 var buildDate = "unknown"
 
 func main() {
-	// Handle CLI subcommands that don't need full config
 	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "migrate":
-			runMigrate()
-			return
-		case "seed":
-			runSeed()
-			return
-		case "reset-password":
-			runResetPassword()
-			return
-		case "users":
-			runUsers()
-			return
-		case "user-create":
-			runUserCreate()
-			return
-		case "user-delete":
-			runUserDelete()
-			return
-		case "boards":
-			runBoards()
-			return
-		case "board-create":
-			runBoardCreate()
-			return
-		case "board-delete":
-			runBoardDelete()
-			return
-		case "cards":
-			runCards()
-			return
-		case "card-show":
-			runCardShow()
-			return
-		case "card-delete":
-			runCardDelete()
-			return
-		case "reseed":
-			runReseed()
-			return
-		case "seed-test":
-			runSeedTest()
-			return
-		case "stats":
-			runStats()
-			return
-		case "backup":
-			runBackup()
-			return
-		case "restore":
-			runRestore()
-			return
-		case "api-key":
-			runAPIKey()
-			return
-		case "help", "--help", "-h":
-			printUsage()
+		if handled, err := runCLI(os.Args[1]); handled {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
 			return
 		}
 	}
 
+	if err := runServer(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runCLI dispatches a CLI subcommand. handled is false for unknown commands so
+// main falls through to the server.
+func runCLI(name string) (handled bool, err error) {
+	switch name {
+	case "migrate":
+		return true, runMigrate()
+	case "seed":
+		return true, runSeed()
+	case "reset-password":
+		return true, runResetPassword()
+	case "users":
+		return true, runUsers()
+	case "user-create":
+		return true, runUserCreate()
+	case "user-delete":
+		return true, runUserDelete()
+	case "boards":
+		return true, runBoards()
+	case "board-create":
+		return true, runBoardCreate()
+	case "board-delete":
+		return true, runBoardDelete()
+	case "cards":
+		return true, runCards()
+	case "card-show":
+		return true, runCardShow()
+	case "card-delete":
+		return true, runCardDelete()
+	case "reseed":
+		return true, runReseed()
+	case "seed-test":
+		return true, runSeedTest()
+	case "stats":
+		return true, runStats()
+	case "backup":
+		return true, runBackup()
+	case "restore":
+		return true, runRestore()
+	case "api-key":
+		return true, runAPIKey()
+	case "help", "--help", "-h":
+		printUsage()
+		return true, nil
+	}
+	return false, nil
+}
+
+func runServer() error {
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("config: %w", err)
 	}
 
 	// Set up slog
@@ -167,20 +168,21 @@ func main() {
 
 	if cfg.LambdaDemo {
 		if err := prepareLambdaDemoDB(cfg); err != nil {
-			logger.Error("lambda demo database setup failed", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("lambda demo database setup failed: %w", err)
 		}
 	}
 
 	// Database
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 	if !cfg.LambdaDemo {
 		// Auto-setup tables in standard mode.
 		if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-			logger.Error("database setup failed", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("database setup failed: %w", err)
 		}
 	}
 
@@ -419,21 +421,23 @@ func main() {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 
+	serveErr := make(chan error, 1)
 	go func() {
 		logger.Info("server starting", "port", cfg.Port, "version", version, "dev", cfg.DevMode)
-		var listenErr error
 		if srv.TLSConfig != nil {
-			listenErr = srv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey)
-		} else {
-			listenErr = srv.ListenAndServe()
+			serveErr <- srv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey)
+			return
 		}
-		if listenErr != nil && listenErr != http.ErrServerClosed {
-			logger.Error("server failed", "error", listenErr)
-			os.Exit(1)
-		}
+		serveErr <- srv.ListenAndServe()
 	}()
 
-	<-done
+	select {
+	case <-done:
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("server failed: %w", err)
+		}
+	}
 	logger.Info("shutting down")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -446,6 +450,7 @@ func main() {
 		discordN.Stop()
 	}
 	logger.Info("server stopped")
+	return nil
 }
 
 // runBoardEventsRetention deletes board_events older than `retention` on a
@@ -484,45 +489,49 @@ func runBoardEventsRetention(ctx context.Context, store *sse.DBEventStore, reten
 	}
 }
 
-func getDS(ctx context.Context) db.Datasource {
+func openDS(ctx context.Context) (db.Datasource, error) {
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
 		dbURL = "postgres://lwts:lwts@localhost:5432/lwts?sslmode=disable"
 	}
 	ds, err := db.NewDatasource(ctx, dbURL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "db: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("db: %w", err)
 	}
-	return ds
+	return ds, nil
 }
 
-func runMigrate() {
+func runMigrate() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 	fmt.Println("migrations applied")
+	return nil
 }
 
-func runSeed() {
+func runSeed() error {
 	ctx := context.Background()
-	ds := getDS(ctx)
+	ds, err := openDS(ctx)
+	if err != nil {
+		return err
+	}
 	defer ds.Close()
 	// Run migrations first
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 
 	if err := repo.Seed(ctx, ds); err != nil {
-		fmt.Fprintf(os.Stderr, "seed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed: %w", err)
 	}
 	fmt.Println("seed data applied")
+	return nil
 }
 
 func parseLogLevel(s string) slog.Level {

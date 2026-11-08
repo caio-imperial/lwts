@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -59,7 +60,7 @@ func (s *Store) GetWebhook(ctx context.Context, id string) (Webhook, error) {
 	var w Webhook
 	var enabled int
 	err := row.Scan(&w.ID, &w.BoardID, &w.EventType, &w.URL, &w.Secret, &enabled, &w.CreatedAt)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Webhook{}, db.ErrNoRows
 	}
 	w.Enabled = enabled != 0
@@ -199,7 +200,7 @@ func (s *Store) GetDelivery(ctx context.Context, id string) (Delivery, error) {
 	err := row.Scan(&d.ID, &d.WebhookID, &d.EventType, &d.Payload,
 		&d.ResponseCode, &d.ResponseBody, &deliveredAt,
 		&d.Attempts, &nextRetryAt, &d.Status)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Delivery{}, db.ErrNoRows
 	}
 	if err != nil {

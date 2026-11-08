@@ -2,6 +2,7 @@ package embed
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -188,7 +189,7 @@ func KeyMatch(ctx context.Context, ds db.Datasource, q string, opts SearchOption
 	row := ds.QueryRow(ctx, sql, args...)
 	var id string
 	if err := row.Scan(&id); err != nil {
-		if err == db.ErrNoRows {
+		if errors.Is(err, db.ErrNoRows) {
 			return "", nil
 		}
 		return "", fmt.Errorf("key lookup: %w", err)

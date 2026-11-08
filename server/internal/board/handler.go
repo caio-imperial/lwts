@@ -2,6 +2,7 @@ package board
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/oceanplexian/lwts/server/internal/auth"
@@ -79,7 +80,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	b, err := h.boards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "board not found")
 		return
 	}
@@ -115,7 +116,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	b, err := h.boards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "board not found")
 		return
 	}
@@ -280,7 +281,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	b, err := h.boards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "board not found")
 		return
 	}

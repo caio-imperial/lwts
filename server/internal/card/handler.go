@@ -3,6 +3,7 @@ package card
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -126,7 +127,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	board, err := h.boards.GetByID(r.Context(), boardID)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "board not found")
 		return
 	}
@@ -207,7 +208,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListByBoard(w http.ResponseWriter, r *http.Request) {
 	boardID := r.PathValue("boardId")
 	if _, err := h.boards.GetByID(r.Context(), boardID); err != nil {
-		if err == repo.ErrNotFound {
+		if errors.Is(err, repo.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "board not found")
 			return
 		}
@@ -238,7 +239,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	card, err := h.cards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
@@ -283,7 +284,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Snapshot before update for discord diff and custom-field merge.
 	oldCard, err := h.cards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
@@ -339,11 +340,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		upd.CustomFields = &customFields
 	}
 	card, err := h.cards.Update(r.Context(), id, req.Version, upd)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
-	if err == repo.ErrConflict {
+	if errors.Is(err, repo.ErrConflict) {
 		// Return current version so client can reconcile
 		current, _ := h.cards.GetByID(r.Context(), id)
 		w.Header().Set("Content-Type", "application/json")
@@ -425,7 +426,7 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 
 	// Get current card to check transition rules
 	current, err := h.cards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
@@ -455,11 +456,11 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 		moveOpts = append(moveOpts, repo.MoveOption{EpicID: &epicVal})
 	}
 	card, err := h.cards.Move(r.Context(), id, req.Version, req.ColumnID, req.Position, moveOpts...)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
-	if err == repo.ErrConflict {
+	if errors.Is(err, repo.ErrConflict) {
 		current, _ := h.cards.GetByID(r.Context(), id)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
@@ -643,7 +644,7 @@ func (h *Handler) ClearDone(w http.ResponseWriter, r *http.Request) {
 	boardID := r.PathValue("boardId")
 
 	board, err := h.boards.GetByID(r.Context(), boardID)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "board not found")
 		return
 	}
@@ -699,7 +700,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	// Get card first for board ID (SSE broadcast)
 	card, err := h.cards.GetByID(r.Context(), id)
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "card not found")
 		return
 	}
@@ -739,10 +740,10 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // writeCardResolveError maps resolveID failures to HTTP responses. Keys are
 // unique per board, so a global key lookup can be ambiguous.
 func writeCardResolveError(w http.ResponseWriter, err error) {
-	switch err {
-	case repo.ErrNotFound:
+	switch {
+	case errors.Is(err, repo.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "card not found")
-	case repo.ErrAmbiguous:
+	case errors.Is(err, repo.ErrAmbiguous):
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error":   "ambiguous_key",
 			"message": "card key exists in more than one board; use the card UUID",

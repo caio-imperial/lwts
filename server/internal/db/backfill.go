@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -55,7 +56,7 @@ func ensureDefaultWorkspace(ctx context.Context, ds Datasource) (string, error) 
 	if err == nil {
 		return id, nil
 	}
-	if err != ErrNoRows {
+	if !errors.Is(err, ErrNoRows) {
 		return "", err
 	}
 
@@ -128,7 +129,7 @@ func uniqueSlug(ctx context.Context, ds Datasource, collisionQuery, scope, base,
 	for i := 2; i < 10000; i++ {
 		var found int
 		err := ds.QueryRow(ctx, collisionQuery, scope, candidate, excludeID).Scan(&found)
-		if err == ErrNoRows {
+		if errors.Is(err, ErrNoRows) {
 			return candidate, nil
 		}
 		if err != nil {

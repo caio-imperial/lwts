@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,7 +14,7 @@ import (
 func (r *CardRepository) Delete(ctx context.Context, id string) error {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		err := r.deleteOnce(ctx, id)
-		if err == nil || err == ErrNotFound {
+		if err == nil || errors.Is(err, ErrNotFound) {
 			return err
 		}
 		if isRetryable(err) && attempt < maxRetries-1 {
@@ -36,7 +37,7 @@ func (r *CardRepository) deleteOnce(ctx context.Context, id string) error {
 	var boardID, colID string
 	var pos int
 	if err := row.Scan(&boardID, &colID, &pos); err != nil {
-		if err == db.ErrNoRows {
+		if errors.Is(err, db.ErrNoRows) {
 			return ErrNotFound
 		}
 		return err

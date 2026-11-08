@@ -136,7 +136,7 @@ func windowAround(body string, matchIdx, matchLen int) string {
 		out = "…" + out
 	}
 	if trailEllipsis {
-		out = out + "…"
+		out += "…"
 	}
 	return out
 }

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,7 +67,7 @@ func (r *CommentRepository) GetByID(ctx context.Context, id string) (Comment, er
 
 	var c Comment
 	err := row.Scan(&c.ID, &c.CardID, &c.AuthorID, &c.Body, &c.CreatedAt, &c.UpdatedAt)
-	if err == db.ErrNoRows {
+	if errors.Is(err, db.ErrNoRows) {
 		return Comment{}, ErrNotFound
 	}
 	return c, err

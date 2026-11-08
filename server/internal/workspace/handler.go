@@ -5,6 +5,7 @@ package workspace
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -277,7 +278,7 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 }
 
 func writeResolveErr(w http.ResponseWriter, err error) {
-	if err == repo.ErrNotFound {
+	if errors.Is(err, repo.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}
