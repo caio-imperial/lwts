@@ -46,6 +46,9 @@ func (r *BoardRepository) Create(ctx context.Context, name, projectKey, ownerID 
 }
 
 func (r *BoardRepository) GetByID(ctx context.Context, id string) (Board, error) {
+	if !isUUID(id) {
+		return Board{}, ErrNotFound
+	}
 	row := r.ds.QueryRow(ctx,
 		`SELECT id, name, project_key, owner_id, columns, settings, created_at, updated_at
 		 FROM boards WHERE id = $1`, id)
@@ -85,6 +88,9 @@ type BoardUpdate struct {
 }
 
 func (r *BoardRepository) Update(ctx context.Context, id string, fields BoardUpdate) (Board, error) {
+	if !isUUID(id) {
+		return Board{}, ErrNotFound
+	}
 	var sets []string
 	var args []any
 	argN := 1
@@ -134,6 +140,9 @@ func (r *BoardRepository) Update(ctx context.Context, id string, fields BoardUpd
 }
 
 func (r *BoardRepository) Delete(ctx context.Context, id string) error {
+	if !isUUID(id) {
+		return ErrNotFound
+	}
 	n, err := r.ds.Exec(ctx, `DELETE FROM boards WHERE id = $1`, id)
 	if err != nil {
 		return err

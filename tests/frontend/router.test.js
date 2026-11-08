@@ -22,7 +22,7 @@ before(async () => {
 
 // ── parseUrl ──────────────────────────────────────────────────────────────
 
-test('parseUrl: superfície de rotas', () => {
+test('parseUrl: route surface', () => {
   assert.deepEqual(parseUrl('/'), { name: 'root', query: new URLSearchParams() });
   assert.equal(parseUrl('/boards').name, 'allBoards');
 
@@ -46,7 +46,7 @@ test('parseUrl: superfície de rotas', () => {
   assert.equal(parseUrl('/settings/custom-fields').section, 'custom-fields');
 });
 
-test('parseUrl: normaliza barras e aceita URL/location', () => {
+test('parseUrl: normalizes slashes and accepts URL/location', () => {
   assert.equal(parseUrl('/boards/abc/').name, 'board');
   assert.equal(parseUrl('/boards//abc').boardRef, 'abc');
   assert.equal(parseUrl('http://localhost:8099/boards/abc').boardRef, 'abc');
@@ -54,7 +54,7 @@ test('parseUrl: normaliza barras e aceita URL/location', () => {
   assert.equal(parseUrl({ href: 'http://x/boards/abc' }).boardRef, 'abc');
 });
 
-test('parseUrl: rotas inválidas viram notFound', () => {
+test('parseUrl: invalid routes become notFound', () => {
   for (const url of [
     '/nope',
     '/boards/abc/cards',
@@ -67,7 +67,7 @@ test('parseUrl: rotas inválidas viram notFound', () => {
   }
 });
 
-test('parseUrl: só filtros conhecidos entram na query', () => {
+test('parseUrl: only known filters are kept in the query', () => {
   const route = parseUrl('/boards/abc?view=list&foo=bar&q=bug&tag=urgent');
   assert.equal(route.query.get('view'), 'list');
   assert.equal(route.query.get('q'), 'bug');
@@ -76,13 +76,13 @@ test('parseUrl: só filtros conhecidos entram na query', () => {
   assert.equal(route.query.get('board'), null);
 });
 
-test('parseUrl: FILTER_PARAMS é a allowlist da query', () => {
+test('parseUrl: FILTER_PARAMS is the query allowlist', () => {
   assert.deepEqual(FILTER_PARAMS, ['view', 'assignee', 'priority', 'tag', 'q']);
 });
 
 // ── buildUrl ──────────────────────────────────────────────────────────────
 
-test('buildUrl: constrói todas as rotas', () => {
+test('buildUrl: builds every route', () => {
   assert.equal(buildUrl({ name: 'root' }), '/');
   assert.equal(buildUrl({ name: 'allBoards' }), '/boards');
   assert.equal(buildUrl({ name: 'board', boardRef: 'abc' }), '/boards/abc');
@@ -95,7 +95,7 @@ test('buildUrl: constrói todas as rotas', () => {
   assert.equal(buildUrl({ name: 'settings', section: 'boards' }), '/settings/boards');
 });
 
-test('buildUrl: escapa refs e ordena filtros', () => {
+test('buildUrl: escapes refs and orders filters', () => {
   assert.equal(
     buildUrl({ name: 'board', boardRef: 'a b' }),
     '/boards/a%20b',
@@ -111,7 +111,7 @@ test('buildUrl: escapa refs e ordena filtros', () => {
   );
 });
 
-test('buildUrl: exige refs de identidade e rejeita rota desconhecida', () => {
+test('buildUrl: requires identity refs and rejects unknown routes', () => {
   assert.throws(() => buildUrl({ name: 'board' }), TypeError);
   assert.throws(() => buildUrl({ name: 'card', boardRef: 'abc' }), TypeError);
   assert.throws(() => buildUrl({ name: 'card', cardRef: '42' }), TypeError);
@@ -119,7 +119,7 @@ test('buildUrl: exige refs de identidade e rejeita rota desconhecida', () => {
   assert.throws(() => buildUrl({ name: 'nope' }), TypeError);
 });
 
-test('buildUrl/parseUrl: round-trip preserva refs e filtros', () => {
+test('buildUrl/parseUrl: round-trip preserves refs and filters', () => {
   const states = [
     { name: 'root' },
     { name: 'allBoards', query: { view: 'list' } },
@@ -143,7 +143,7 @@ test('buildUrl/parseUrl: round-trip preserva refs e filtros', () => {
 
 // ── Sem suporte a URLs legadas ────────────────────────────────────────────
 
-test('URLs legadas não são mais interpretadas (hash/query ignorados)', () => {
+test('legacy URLs are no longer interpreted (hash/query ignored)', () => {
   // The fork does not keep legacy redirects: hash and ?board= are ignored.
   assert.equal(parseUrl('/?board=abc').name, 'root');
   assert.equal(parseUrl('/#settings/boards').name, 'root');

@@ -44,7 +44,7 @@ test.beforeAll(async ({ request }) => {
   dashedCard = dashedCards[dashedCards.length - 1];
 });
 
-test('boot: / redireciona para /boards/<uuid> sem query', async ({ page }) => {
+test('boot: / redirects to /boards/<uuid> without a query', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -54,7 +54,7 @@ test('boot: / redireciona para /boards/<uuid> sem query', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('troca de board navega e o histórico funciona', async ({ page }) => {
+test('board switching navigates and history works', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -72,7 +72,7 @@ test('troca de board navega e o histórico funciona', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('All Boards em /boards sobrevive ao refresh', async ({ page }) => {
+test('All Boards at /boards survives a refresh', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -86,7 +86,7 @@ test('All Boards em /boards sobrevive ao refresh', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('deep link de card abre e sobrevive ao refresh', async ({ page }) => {
+test('card deep link opens and survives a refresh', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -111,7 +111,7 @@ test('deep link de card abre e sobrevive ao refresh', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('deep link de key com hífen (MY-BOA-N)', async ({ page }) => {
+test('deep link with a dashed key (MY-BOA-N)', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -123,7 +123,7 @@ test('deep link de key com hífen (MY-BOA-N)', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('settings: abrir por URL, trocar aba, refresh e fechar', async ({ page }) => {
+test('settings: open by URL, switch tab, refresh and close', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -146,7 +146,7 @@ test('settings: abrir por URL, trocar aba, refresh e fechar', async ({ page }) =
   expect(problems).toEqual([]);
 });
 
-test('rota desconhecida cai em /boards', async ({ page }) => {
+test('unknown route falls back to /boards', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -156,7 +156,7 @@ test('rota desconhecida cai em /boards', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('URLs antigas (?board= e hash) são ignoradas sem quebrar', async ({ page }) => {
+test('old URLs (?board= and hash) are ignored without breaking', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 
@@ -175,7 +175,7 @@ test('URLs antigas (?board= e hash) são ignoradas sem quebrar', async ({ page }
   expect(problems).toEqual([]);
 });
 
-test('copiar link do card inclui board e key', async ({ page, context }) => {
+test('card copy link includes the board and key', async ({ page, context }) => {
   const problems = watchConsole(page);
   await login(page);
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -190,7 +190,7 @@ test('copiar link do card inclui board e key', async ({ page, context }) => {
   expect(problems).toEqual([]);
 });
 
-test('regressão: cards renderizam e detalhe abre/fecha', async ({ page }) => {
+test('regression: cards render and detail opens/closes', async ({ page }) => {
   const problems = watchConsole(page);
   await login(page);
 

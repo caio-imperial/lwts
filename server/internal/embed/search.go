@@ -130,8 +130,8 @@ func (s *Service) SearchSemantic(ctx context.Context, query string, opts SearchO
 var nonWordRe = regexp.MustCompile(`\W+`)
 
 // keyShapeRe matches a ticket-key-shaped query: project key + dash + number,
-// e.g. FNAI-16 or kanb-7. Whitespace is trimmed before matching.
-var keyShapeRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-\d+$`)
+// e.g. FNAI-16, kanb-7 or MY-BOA-3. Whitespace is trimmed before matching.
+var keyShapeRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*-\d+$`)
 
 // LooksLikeKey reports whether `q` is shaped like a card key. Used by the
 // cascade and the lexical fallback to know whether to attempt an exact-key

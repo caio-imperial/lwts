@@ -14,9 +14,9 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/sse"
 )
 
-// keyPattern matches card keys like "FNAI-245" / "KANB-96": one-or-more
-// uppercase letter/digit segment starting with a letter, dash, then digits.
-var keyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[0-9]+$`)
+// keyPattern matches card keys like "FNAI-245", "KANB-96" or "MY-BOA-7":
+// a project prefix made of letters/digits/dashes, then a dash and digits.
+var keyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]*-[0-9]+$`)
 
 // looksLikeKey reports whether s is shaped like a card key rather than a UUID.
 func looksLikeKey(s string) bool {
@@ -206,6 +206,14 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ListByBoard(w http.ResponseWriter, r *http.Request) {
 	boardID := r.PathValue("boardId")
+	if _, err := h.boards.GetByID(r.Context(), boardID); err != nil {
+		if err == repo.ErrNotFound {
+			writeErr(w, http.StatusNotFound, "board not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 	cards, err := h.cards.ListByBoard(r.Context(), boardID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal server error")
