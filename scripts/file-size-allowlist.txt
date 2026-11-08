@@ -7,7 +7,6 @@ server/cmd/main.go
 server/internal/board/search.go
 server/internal/card/handler.go
 server/internal/card/handler_test.go
-server/internal/repo/card.go
 server/internal/repo/repo_test.go
 server/internal/repo/seed.go
 server/internal/settings/handler.go
