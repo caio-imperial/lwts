@@ -27,7 +27,7 @@ func runUsers() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	users := repo.NewUserRepository(ds)
 	list, err := users.List(ctx)
@@ -64,7 +64,7 @@ func runUserCreate() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	hash, err := auth.HashPassword(password)
 	if err != nil {
@@ -100,7 +100,7 @@ func runUserDelete() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	users := repo.NewUserRepository(ds)
 	u, err := users.GetByEmail(ctx, email)
@@ -127,7 +127,7 @@ func runResetPassword() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	hash, err := auth.HashPassword(newPassword)
 	if err != nil {
@@ -155,7 +155,7 @@ func runBoards() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	boards := repo.NewBoardRepository(ds)
 	list, err := boards.List(ctx)
@@ -174,7 +174,9 @@ func runBoards() error {
 			ownerName = u.Name
 		}
 		var count int
-		_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards WHERE board_id = $1", b.ID).Scan(&count)
+		if err := ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards WHERE board_id = $1", b.ID).Scan(&count); err != nil {
+			return fmt.Errorf("count cards for board %s: %w", b.ID, err)
+		}
 		fmt.Printf("%-36s  %-25s  %-10s  %-20s  %d\n",
 			b.ID, truncate(b.Name, 25), b.ProjectKey, truncate(ownerName, 20), count)
 	}
@@ -195,7 +197,7 @@ func runBoardCreate() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	users := repo.NewUserRepository(ds)
 	owner, err := users.GetByEmail(ctx, ownerEmail)
@@ -223,7 +225,7 @@ func runBoardDelete() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	// Delete comments on cards in this board
 	_, _ = ds.Exec(ctx, "DELETE FROM comments WHERE card_id IN (SELECT id FROM cards WHERE board_id = $1)", boardID)
@@ -272,7 +274,7 @@ func runCards() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	board, err := resolveBoard(ctx, ds, os.Args[2])
 	if err != nil {
@@ -287,7 +289,10 @@ func runCards() error {
 
 	// Build user lookup
 	users := repo.NewUserRepository(ds)
-	userList, _ := users.List(ctx)
+	userList, err := users.List(ctx)
+	if err != nil {
+		return fmt.Errorf("list users: %w", err)
+	}
 	userMap := make(map[string]string)
 	for _, u := range userList {
 		userMap[u.ID] = u.Name
@@ -299,7 +304,9 @@ func runCards() error {
 		Label string `json:"label"`
 	}
 	var cols []col
-	_ = json.Unmarshal([]byte(board.Columns), &cols)
+	if err := json.Unmarshal([]byte(board.Columns), &cols); err != nil {
+		return fmt.Errorf("parse board columns: %w", err)
+	}
 
 	// Build column label map
 	colLabels := make(map[string]string)
@@ -380,7 +387,7 @@ func runCardShow() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	card, err := resolveCard(ctx, ds, os.Args[2])
 	if err != nil {
@@ -389,7 +396,10 @@ func runCardShow() error {
 
 	users := repo.NewUserRepository(ds)
 	userMap := make(map[string]string)
-	userList, _ := users.List(ctx)
+	userList, err := users.List(ctx)
+	if err != nil {
+		return fmt.Errorf("list users: %w", err)
+	}
 	for _, u := range userList {
 		userMap[u.ID] = u.Name
 	}
@@ -459,7 +469,7 @@ func runCardDelete() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	card, err := resolveCard(ctx, ds, os.Args[2])
 	if err != nil {
@@ -485,7 +495,7 @@ func runSeedTest() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
 		return fmt.Errorf("migrate: %w", err)
@@ -528,25 +538,40 @@ func runReseed() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	// Run migrations first
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// Wipe in FK order
-	_, _ = ds.Exec(ctx, "DELETE FROM comments")
-	_, _ = ds.Exec(ctx, "DELETE FROM cards")
-	_, _ = ds.Exec(ctx, "DELETE FROM boards")
-	fmt.Println("wiped all boards, cards, comments")
-
-	// Get first user
+	// Find the owner before touching anything, so a failed lookup cannot
+	// leave the database wiped.
 	users := repo.NewUserRepository(ds)
 	list, err := users.List(ctx)
-	if err != nil || len(list) == 0 {
+	if err != nil {
+		return fmt.Errorf("list users: %w", err)
+	}
+	if len(list) == 0 {
 		return errors.New("no users exist — create a user first")
 	}
+
+	// Wipe in FK order inside one transaction: a partial wipe would let the
+	// seed below duplicate data instead of replacing it.
+	tx, err := ds.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	for _, table := range []string{"comments", "cards", "boards"} {
+		if _, err := tx.Exec(ctx, "DELETE FROM "+table); err != nil {
+			return fmt.Errorf("delete %s: %w", table, err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	fmt.Println("wiped all boards, cards, comments")
 
 	if err := repo.SeedDemo(ctx, ds, list[0].ID); err != nil {
 		return fmt.Errorf("seed: %w", err)
@@ -561,13 +586,21 @@ func runStats() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	var userCount, boardCount, cardCount, commentCount int
-	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&userCount)
-	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM boards").Scan(&boardCount)
-	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards").Scan(&cardCount)
-	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM comments").Scan(&commentCount)
+	if err := ds.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&userCount); err != nil {
+		return fmt.Errorf("count users: %w", err)
+	}
+	if err := ds.QueryRow(ctx, "SELECT COUNT(*) FROM boards").Scan(&boardCount); err != nil {
+		return fmt.Errorf("count boards: %w", err)
+	}
+	if err := ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards").Scan(&cardCount); err != nil {
+		return fmt.Errorf("count cards: %w", err)
+	}
+	if err := ds.QueryRow(ctx, "SELECT COUNT(*) FROM comments").Scan(&commentCount); err != nil {
+		return fmt.Errorf("count comments: %w", err)
+	}
 
 	fmt.Printf("Users:       %d\n", userCount)
 	fmt.Printf("Boards:      %d\n", boardCount)
@@ -576,28 +609,40 @@ func runStats() error {
 
 	// Card breakdown by column
 	rows, err := ds.Query(ctx, "SELECT column_id, COUNT(*) FROM cards GROUP BY column_id ORDER BY column_id")
-	if err == nil {
-		defer rows.Close()
-		fmt.Printf("\nCards by column:\n")
-		for rows.Next() {
-			var col string
-			var cnt int
-			_ = rows.Scan(&col, &cnt)
-			fmt.Printf("  %-20s %d\n", col, cnt)
+	if err != nil {
+		return fmt.Errorf("count cards by column: %w", err)
+	}
+	defer rows.Close()
+	fmt.Printf("\nCards by column:\n")
+	for rows.Next() {
+		var col string
+		var cnt int
+		if err := rows.Scan(&col, &cnt); err != nil {
+			return fmt.Errorf("scan cards by column: %w", err)
 		}
+		fmt.Printf("  %-20s %d\n", col, cnt)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate cards by column: %w", err)
 	}
 
 	// Card breakdown by priority
 	rows2, err := ds.Query(ctx, "SELECT priority, COUNT(*) FROM cards GROUP BY priority ORDER BY priority")
-	if err == nil {
-		defer rows2.Close()
-		fmt.Printf("\nCards by priority:\n")
-		for rows2.Next() {
-			var pri string
-			var cnt int
-			_ = rows2.Scan(&pri, &cnt)
-			fmt.Printf("  %-20s %d\n", pri, cnt)
+	if err != nil {
+		return fmt.Errorf("count cards by priority: %w", err)
+	}
+	defer rows2.Close()
+	fmt.Printf("\nCards by priority:\n")
+	for rows2.Next() {
+		var pri string
+		var cnt int
+		if err := rows2.Scan(&pri, &cnt); err != nil {
+			return fmt.Errorf("scan cards by priority: %w", err)
 		}
+		fmt.Printf("  %-20s %d\n", pri, cnt)
+	}
+	if err := rows2.Err(); err != nil {
+		return fmt.Errorf("iterate cards by priority: %w", err)
 	}
 	return nil
 }
@@ -637,7 +682,7 @@ func runBackup() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	// Users — need password_hash included
 	rows, err := ds.Query(ctx, "SELECT id, email, name, password_hash, avatar_color, avatar_url, initials, role, created_at, updated_at FROM users ORDER BY created_at")
@@ -723,21 +768,35 @@ func runRestore() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	// Run migrations first
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
+	// Wipe and reinsert atomically so a failed restore leaves the previous
+	// data untouched.
+	tx, err := ds.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	// Wipe in FK order (comments, cards, boards — not users per spec)
-	_, _ = ds.Exec(ctx, "DELETE FROM comments")
-	_, _ = ds.Exec(ctx, "DELETE FROM cards")
-	_, _ = ds.Exec(ctx, "DELETE FROM boards")
+	if _, err := tx.Exec(ctx, "DELETE FROM comments"); err != nil {
+		return fmt.Errorf("delete comments: %w", err)
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM cards"); err != nil {
+		return fmt.Errorf("delete cards: %w", err)
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM boards"); err != nil {
+		return fmt.Errorf("delete boards: %w", err)
+	}
 
 	// Insert boards
 	for _, b := range data.Boards {
-		_, err = ds.Exec(ctx,
+		_, err = tx.Exec(ctx,
 			`INSERT INTO boards (id, name, project_key, owner_id, columns, settings, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			b.ID, b.Name, b.ProjectKey, b.OwnerID, b.Columns, b.Settings, b.CreatedAt, b.UpdatedAt)
@@ -752,7 +811,7 @@ func runRestore() error {
 		if err != nil {
 			return fmt.Errorf("marshal custom fields for %s: %w", c.Key, err)
 		}
-		_, err = ds.Exec(ctx,
+		_, err = tx.Exec(ctx,
 			`INSERT INTO cards (id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
 			 points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, custom_fields, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
@@ -766,7 +825,7 @@ func runRestore() error {
 
 	// Insert comments
 	for _, cm := range data.Comments {
-		_, err := ds.Exec(ctx,
+		_, err := tx.Exec(ctx,
 			`INSERT INTO comments (id, card_id, author_id, body, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6)`,
 			cm.ID, cm.CardID, cm.AuthorID, cm.Body, cm.CreatedAt, cm.UpdatedAt)
@@ -775,8 +834,13 @@ func runRestore() error {
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
 	// Old backups do not carry workspace/slug/number/card_seq. Rebuild the
-	// identity columns after the inserts; the pass is idempotent.
+	// identity columns after the commit; the pass is idempotent and needs a
+	// Datasource (not a Tx).
 	if err := db.BackfillIdentity(ctx, ds); err != nil {
 		return fmt.Errorf("backfill identity after restore: %w", err)
 	}
@@ -801,7 +865,7 @@ func runAPIKey() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 
 	users := repo.NewUserRepository(ds)
 	u, err := users.GetByEmail(ctx, email)
@@ -842,31 +906,44 @@ func truncate(s string, max int) string {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `LWTS Kanban Admin CLI
+	type entry struct{ cmd, desc string }
+	entries := []entry{
+		{"migrate", "Run database migrations"},
+		{"seed", "Seed demo board data (skips if boards exist)"},
+		{"reseed", "Wipe boards/cards/comments, reseed demo data"},
+		{},
+		{"users", "List all users"},
+		{"user-create <name> <email> <pw>", "Create a user (--role=X, default member)"},
+		{"user-delete <email>", "Delete a user"},
+		{"reset-password <email> <password>", "Reset a user's password"},
+		{},
+		{"boards", "List all boards"},
+		{"board-create <name> <key> <owner_email>", "Create a board"},
+		{"board-delete <id>", "Delete a board and its cards"},
+		{},
+		{"cards <board_id_or_name>", "List cards on a board"},
+		{"card-show <key_or_id>", "Show full card detail"},
+		{"card-delete <key_or_id>", "Delete a card"},
+		{},
+		{"stats", "Show system statistics"},
+		{"backup <output_path>", "Export DB to JSON"},
+		{"restore <input_path>", "Import from JSON backup"},
+		{"api-key <email> [name]", "Create an lwts_sk_ API key for a user"},
+		{},
+		{"seed-test", "Create the test owner and edge-case board (E2E fixtures)"},
+		{"help", "Show this help"},
+	}
 
-Usage: lwts <command> [args]
-
-Commands:
-  migrate                                  Run database migrations
-  seed                                     Seed demo data (if no users exist)
-  reseed                                   Wipe boards/cards/comments, reseed demo data
-
-  users                                    List all users
-  user-create <name> <email> <pw> [--role] Create a user
-  user-delete <email>                      Delete a user
-  reset-password <email> <password>        Reset a user's password
-
-  boards                                   List all boards
-  board-create <name> <key> <owner_email>  Create a board
-  board-delete <id>                        Delete a board and its cards
-
-  cards <board_id_or_name>                 List cards on a board
-  card-show <key_or_id>                    Show full card detail
-  card-delete <key_or_id>                  Delete a card
-
-  stats                                    Show system statistics
-  backup <output_path>                     Export DB to JSON
-  restore <input_path>                     Import from JSON backup
-  api-key <email>                          Generate 365-day JWT for API access
-`)
+	fmt.Fprintln(os.Stderr, "LWTS Kanban Admin CLI")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Usage: lwts <command> [args]")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Commands:")
+	for _, e := range entries {
+		if e.cmd == "" {
+			fmt.Fprintln(os.Stderr)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "  %-41s %s\n", e.cmd, e.desc)
+	}
 }

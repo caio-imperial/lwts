@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/oceanplexian/lwts/server/internal/db"
@@ -29,6 +30,16 @@ func SeedDemo(ctx context.Context, ds db.Datasource, ownerID string) error {
 	}
 	userIDs := map[string]string{"owner": ownerID}
 	for i, u := range extraUsers {
+		// Reuse an existing account with the same email so repeated seeding
+		// (reseed, reset) stays idempotent instead of failing on the unique
+		// email constraint.
+		if existing, err := users.GetByEmail(ctx, u.Email); err == nil {
+			extraUsers[i].ID = existing.ID
+			userIDs[u.Email] = existing.ID
+			continue
+		} else if !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("look up user %q: %w", u.Name, err)
+		}
 		created, err := users.Create(ctx, u.Name, u.Email, "$2a$10$placeholder_hash_not_for_login")
 		if err != nil {
 			return fmt.Errorf("create user %q: %w", u.Name, err)

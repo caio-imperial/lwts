@@ -118,6 +118,10 @@ func runServer() error {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
+	// readyDS is wired once the datasource is open; the /readyz handler is
+	// registered before that so it can report "unavailable" until then.
+	var readyDS db.Datasource
+
 	// Create router
 	mux := http.NewServeMux()
 
@@ -132,8 +136,19 @@ func runServer() error {
 		})
 	})
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
-		// TODO: check DB connectivity once datasource is wired
+		// Readiness depends on the database; liveness (/healthz) does not.
 		w.Header().Set("Content-Type", "application/json")
+		if readyDS == nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable"})
+			return
+		}
+		if err := readyDS.Ping(r.Context()); err != nil {
+			logger.Warn("readiness check failed", "error", err)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable"})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 	// Header plugin manifest — advertised to the frontend so the plugin
@@ -165,7 +180,8 @@ func runServer() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
+	readyDS = ds
 	// Auto-setup tables in standard mode.
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
 		return fmt.Errorf("database setup failed: %w", err)
@@ -481,7 +497,7 @@ func runMigrate() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
@@ -495,7 +511,7 @@ func runSeed() error {
 	if err != nil {
 		return err
 	}
-	defer ds.Close()
+	defer closeDS(ds)
 	// Run migrations first
 	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
 		return fmt.Errorf("migrate: %w", err)
