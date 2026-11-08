@@ -15,7 +15,7 @@ async function login(page) {
   await page.fill('#login-password', TEST_USER.password);
   await page.click('#login-form button[type="submit"]');
 
-  await expect(page).toHaveURL(/\/boards(\/[^/?#]+)?$/);
+  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/[^/]+\/[^/]+$/);
   await page.locator('#board-picker-label').waitFor({ state: 'visible' });
   await dismissWelcome(page);
 }
@@ -41,6 +41,12 @@ function authHeaders(token) {
 
 async function listBoards(request, token) {
   const res = await request.get('/api/v1/boards', { headers: authHeaders(token) });
+  expect(res.ok()).toBeTruthy();
+  return res.json();
+}
+
+async function listWorkspaces(request, token) {
+  const res = await request.get('/api/v1/workspaces', { headers: authHeaders(token) });
   expect(res.ok()).toBeTruthy();
   return res.json();
 }
@@ -123,6 +129,7 @@ module.exports = {
   apiLogin,
   authHeaders,
   listBoards,
+  listWorkspaces,
   listCards,
   createBoard,
   createCard,

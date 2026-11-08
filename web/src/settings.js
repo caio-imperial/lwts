@@ -1567,14 +1567,14 @@ function closeSettings(_fromRoute) {
   if (_sp && !_sp.classList.contains('active')) return;
 
   // Return to the last concrete board (replace, so back doesn't reopen settings).
-  if (!_fromRoute) {
+  if (!_fromRoute && window.currentWorkspace) {
     const last = window.lastConcreteBoardId || window.currentBoardId;
-    if (last) {
-      window.Router.navigate({
-        name: last === 'all' ? 'allBoards' : 'board',
-        boardRef: last,
-      }, { replace: true });
-    }
+    const board = last && last !== 'all'
+      ? window.boardList.find(b => b.id === last)
+      : null;
+    window.Router.navigate(board
+      ? { name: 'board', workspaceRef: window.currentWorkspace.slug, boardRef: board.slug }
+      : { name: 'workspace', workspaceRef: window.currentWorkspace.slug }, { replace: true });
   }
 
   const board = document.getElementById('board');
@@ -1641,7 +1641,9 @@ async function loadBoardsSettings() {
   container.innerHTML = '';
 
   try {
-    const boards = await window.API.listBoards();
+    const boards = window.currentWorkspace
+      ? await window.API.listWorkspaceBoards(window.currentWorkspace.slug)
+      : await window.API.listBoards();
     if (!boards || boards.length === 0) {
       container.innerHTML = '<div style="color:var(--text-dimmed);font-size:0.85rem;padding:8px 0">No boards yet</div>';
       return;
@@ -2582,7 +2584,9 @@ async function loadTransitionsSettings() {
   container.innerHTML = '';
 
   try {
-    const boards = await window.API.listBoards();
+    const boards = window.currentWorkspace
+      ? await window.API.listWorkspaceBoards(window.currentWorkspace.slug)
+      : await window.API.listBoards();
     if (!boards || boards.length === 0) {
       container.innerHTML = '<div style="color:var(--text-dimmed);font-size:0.85rem;padding:8px 0">No boards yet</div>';
       return;

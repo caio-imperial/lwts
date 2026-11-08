@@ -1,10 +1,19 @@
 // User-facing card creation flows.
 
 const { test, expect } = require('@playwright/test');
-const { login, pickBoard, watchConsole, openCreateCard } = require('./helpers');
+const {
+  login,
+  apiLogin,
+  listWorkspaces,
+  pickBoard,
+  watchConsole,
+  openCreateCard,
+} = require('./helpers');
 
-test('create card from All Boards posts to a concrete board and shows it', async ({ page }) => {
+test('create card from All Boards posts to a concrete board and shows it', async ({ page, request }) => {
   const problems = watchConsole(page);
+  const token = await apiLogin(request);
+  const workspace = (await listWorkspaces(request, token))[0];
   const posts = [];
   page.on('response', (res) => {
     if (res.request().method() === 'POST' && res.url().includes('/cards')) {
@@ -14,7 +23,7 @@ test('create card from All Boards posts to a concrete board and shows it', async
 
   await login(page);
   await pickBoard(page, 'All Boards');
-  await expect(page).toHaveURL(/\/boards$/);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/${workspace.slug}`);
 
   const title = 'All boards card ' + Date.now();
   await openCreateCard(page);

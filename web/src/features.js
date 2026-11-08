@@ -34,7 +34,9 @@ async function loadBoardList() {
   }
   try {
     if (typeof window.API !== 'undefined') {
-      window.boardList = await window.API.listBoards();
+      window.boardList = window.currentWorkspace
+        ? await window.API.listWorkspaceBoards(window.currentWorkspace.slug)
+        : await window.API.listBoards();
     }
     if (!window.boardList || !window.boardList.length) return;
     renderBoardPicker();
@@ -182,10 +184,18 @@ function selectBoard(boardId, boardName, options = {}) {
   document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _cap(resolvedBoardName);
 
   // Keep the URL in sync unless the route already drove this selection.
-  if (!options.fromRoute) {
-    window.Router.navigate(isAllBoards
-      ? { name: 'allBoards' }
-      : { name: 'board', boardRef: boardId });
+  if (!options.fromRoute && window.currentWorkspace) {
+    const wsRef = window.currentWorkspace.slug;
+    if (isAllBoards) {
+      window.Router.navigate({ name: 'workspace', workspaceRef: wsRef });
+    } else {
+      const board = window.boardList.find(b => b.id === boardId);
+      window.Router.navigate({
+        name: 'board',
+        workspaceRef: wsRef,
+        boardRef: (board && board.slug) || boardId,
+      });
+    }
   }
 
   // Close picker

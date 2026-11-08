@@ -2,6 +2,10 @@
 //
 // Contract: docs/ROUTES.md
 //
+// Three levels: workspace -> board -> card. Refs are opaque to the router; a
+// single resolver in the SPA interprets them (workspace slug/uuid, board
+// slug/uuid, card number/key/uuid).
+//
 // This module is intentionally free of side effects so it can be unit tested
 // in Node and wired into the SPA in a later phase. The pure helpers live here;
 // `navigate` is the only History API touchpoint and is exported for the SPA.
@@ -13,6 +17,20 @@ const BASE_URL = 'http://lwts.local';
 export const FILTER_PARAMS = ['view', 'assignee', 'priority', 'tag', 'q'];
 
 const SETTINGS_SECTION_RE = /^[a-z0-9][a-z0-9_-]*$/i;
+
+// First path segments that can never be a workspace. `boards` is reserved so
+// the pre-3c `/boards...` URLs fall through to `notFound` (the app then opens
+// the default workspace); the rest are server/static prefixes.
+const RESERVED_WORKSPACE_SLUGS = new Set([
+  'settings',
+  'boards',
+  'api',
+  'assets',
+  'login',
+  'plugins',
+  'healthz',
+  'readyz',
+]);
 
 function toURL(input) {
   if (input instanceof URL) return input;
@@ -66,7 +84,8 @@ function withQuery(path, query) {
  * Parse a URL (absolute, relative or URL object) into a route state.
  *
  * @returns {{
- *   name: 'root'|'allBoards'|'board'|'card'|'settings'|'notFound',
+ *   name: 'root'|'workspace'|'board'|'card'|'settings'|'notFound',
+ *   workspaceRef?: string,
  *   boardRef?: string,
  *   cardRef?: string,
  *   section?: string,
@@ -84,17 +103,6 @@ export function parseUrl(input) {
 
   if (segments.length === 0) return { name: 'root', query };
 
-  if (segments[0] === 'boards') {
-    if (segments.length === 1) return { name: 'allBoards', query };
-    if (segments.length === 2 && segments[1]) {
-      return { name: 'board', boardRef: segments[1], query };
-    }
-    if (segments.length === 4 && segments[2] === 'cards' && segments[1] && segments[3]) {
-      return { name: 'card', boardRef: segments[1], cardRef: segments[3], query };
-    }
-    return { name: 'notFound', query };
-  }
-
   if (segments[0] === 'settings') {
     if (segments.length === 1) return { name: 'settings', section: 'general', query };
     if (segments.length === 2 && SETTINGS_SECTION_RE.test(segments[1])) {
@@ -103,30 +111,67 @@ export function parseUrl(input) {
     return { name: 'notFound', query };
   }
 
+  // No workspace route for reserved/server prefixes (includes legacy /boards).
+  if (RESERVED_WORKSPACE_SLUGS.has(segments[0])) return { name: 'notFound', query };
+
+  if (segments.length === 1) {
+    return { name: 'workspace', workspaceRef: segments[0], query };
+  }
+
+  if (segments.length === 2) {
+    return { name: 'board', workspaceRef: segments[0], boardRef: segments[1], query };
+  }
+
+  if (segments.length === 4 && segments[2] === 'cards') {
+    return {
+      name: 'card',
+      workspaceRef: segments[0],
+      boardRef: segments[1],
+      cardRef: segments[3],
+      query,
+    };
+  }
+
   return { name: 'notFound', query };
 }
 
 /**
  * Build a URL path (with allowed query filters) from a route state.
- * Throws when an identity ref is missing for board/card routes.
+ * Throws when an identity ref is missing for workspace/board/card routes.
  */
 export function buildUrl(state) {
   const name = state && state.name;
   const query = filtersToQuery(state && state.query);
 
   if (name === 'root') return withQuery('/', query);
-  if (name === 'allBoards') return withQuery('/boards', query);
+
+  if (name === 'workspace') {
+    if (!state.workspaceRef) {
+      throw new TypeError('build: workspaceRef is required for workspace routes');
+    }
+    return withQuery(`/${encodeURIComponent(state.workspaceRef)}`, query);
+  }
 
   if (name === 'board') {
+    if (!state.workspaceRef) {
+      throw new TypeError('build: workspaceRef is required for board routes');
+    }
     if (!state.boardRef) throw new TypeError('build: boardRef is required for board routes');
-    return withQuery(`/boards/${encodeURIComponent(state.boardRef)}`, query);
+    return withQuery(
+      `/${encodeURIComponent(state.workspaceRef)}/${encodeURIComponent(state.boardRef)}`,
+      query,
+    );
   }
 
   if (name === 'card') {
+    if (!state.workspaceRef) {
+      throw new TypeError('build: workspaceRef is required for card routes');
+    }
     if (!state.boardRef) throw new TypeError('build: boardRef is required for card routes');
     if (!state.cardRef) throw new TypeError('build: cardRef is required for card routes');
     return withQuery(
-      `/boards/${encodeURIComponent(state.boardRef)}/cards/${encodeURIComponent(state.cardRef)}`,
+      `/${encodeURIComponent(state.workspaceRef)}/${encodeURIComponent(state.boardRef)}` +
+        `/cards/${encodeURIComponent(state.cardRef)}`,
       query,
     );
   }
@@ -143,10 +188,6 @@ export function buildUrl(state) {
   throw new TypeError(`build: unknown route "${String(name)}"`);
 }
 
-/**
- * Build a URL path (with allowed query filters) from a route state.
- * Throws when an identity ref is missing for board/card routes.
- */
 /**
  * Write a route state to the History API without dispatching route handlers.
  *

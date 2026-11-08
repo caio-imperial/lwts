@@ -80,6 +80,32 @@ const API = {
   updateBoard(id, data) { return this.put('/api/v1/boards/' + id, data); },
   deleteBoard(id)  { return this.del('/api/v1/boards/' + id); },
 
+  // Workspace-scoped read routes (workspace -> board -> card). Refs are
+  // opaque: workspace slug/uuid, board slug/uuid, card number/key/uuid.
+  listWorkspaces() { return this.get('/api/v1/workspaces'); },
+  listWorkspaceBoards(workspaceRef) {
+    return this.get('/api/v1/workspaces/' + encodeURIComponent(workspaceRef) + '/boards');
+  },
+  getWorkspaceBoard(workspaceRef, boardRef) {
+    return this.get(
+      '/api/v1/workspaces/' + encodeURIComponent(workspaceRef) +
+      '/boards/' + encodeURIComponent(boardRef),
+    );
+  },
+  listWorkspaceCards(workspaceRef, boardRef) {
+    return this.get(
+      '/api/v1/workspaces/' + encodeURIComponent(workspaceRef) +
+      '/boards/' + encodeURIComponent(boardRef) + '/cards',
+    );
+  },
+  getWorkspaceCard(workspaceRef, boardRef, cardRef) {
+    return this.get(
+      '/api/v1/workspaces/' + encodeURIComponent(workspaceRef) +
+      '/boards/' + encodeURIComponent(boardRef) +
+      '/cards/' + encodeURIComponent(cardRef),
+    );
+  },
+
   listCards(boardId) { return this.get('/api/v1/boards/' + boardId + '/cards'); },
   getCard(id)        { return this.get('/api/v1/cards/' + id); },
   createCard(boardId, data) { return this.post('/api/v1/boards/' + boardId + '/cards', data); },

@@ -113,6 +113,11 @@ let nextId = Date.now();
 let currentBoardId = localStorage.getItem('lwts-board-id') || null;
 let lastConcreteBoardId = currentBoardId && currentBoardId !== 'all' ? currentBoardId : null;
 let boardList = [];
+// Workspace state (phase 3c): workspaces are platform-wide, boards are scoped
+// to the current workspace. Only the default workspace is selectable in this
+// phase, but the route contract is already three levels deep.
+let workspaceList = [];
+let currentWorkspace = null;
 // Map of card id → server card object (for version tracking)
 let cardIndex = {};
 
@@ -147,6 +152,7 @@ function fromAPI(card) {
     id: card.id,
     client_request_id: card.client_request_id || '',
     key: card.key || '',
+    number: card.number ?? 0,
     title: card.title || '',
     tag: card.tag || 'blue',
     priority: card.priority || 'medium',
@@ -164,6 +170,7 @@ function fromAPI(card) {
     blocked_card_ids: blockedIds,
     version: card.version || 0,
     board_id: card.board_id,
+    workspace_id: card.workspace_id || '',
     column_id: card.column_id,
     epic_id: card.epic_id || null,
     custom_fields: (card.custom_fields && typeof card.custom_fields === 'object') ? Object.assign({}, card.custom_fields) : {},
@@ -239,16 +246,29 @@ function closeWelcome() {
 // Load state from API
 async function loadFromAPI() {
   try {
-    boardList = await window.API.listBoards();
-    if (!boardList || boardList.length === 0) {
-      // No boards — create a default one
+    workspaceList = await window.API.listWorkspaces();
+    if (!Array.isArray(workspaceList)) workspaceList = [];
+
+    // Resolve the workspace before fetching boards: the route's workspace ref
+    // (slug or uuid) wins, otherwise the first workspace is the default.
+    const bootRoute = window.Router.parseUrl(location.href);
+    currentWorkspace = resolveWorkspaceRef(bootRoute.workspaceRef)
+      || workspaceList[0]
+      || null;
+    if (!currentWorkspace) throw new Error('No workspaces available');
+
+    boardList = await window.API.listWorkspaceBoards(currentWorkspace.slug);
+    if (!Array.isArray(boardList)) boardList = [];
+
+    if (boardList.length === 0 && workspaceList[0] && currentWorkspace.id === workspaceList[0].id) {
+      // No boards — create a default one in the default workspace.
       const board = await window.API.createBoard({ name: 'kanban', project_key: 'KANB' });
       boardList = [board];
     }
 
-    // Resolve the boot route (legacy URLs first, then the path router) before
-    // rendering, so a deep link paints the correct screen on the first pass.
-    await applyBootRoute();
+    // Resolve the boot route before rendering, so a deep link paints the
+    // correct screen on the first pass.
+    await applyBootRoute(bootRoute);
 
     window.renderBoardPicker();
 
@@ -277,17 +297,74 @@ async function loadFromAPI() {
 }
 
 // ── Route resolution (contract: docs/ROUTES.md) ──
+//
+// Refs are opaque in the router; this is the single resolver. The active
+// workspace is already loaded, so boards resolve inside `boardList` only.
+
+function resolveWorkspaceRef(ref) {
+  if (!ref) return null;
+  return workspaceList.find(w => w.slug === ref || w.id === ref) || null;
+}
 
 function resolveBoardRef(ref) {
   if (!ref) return null;
-  return boardList.find(b => b.id === ref) || null;
+  return boardList.find(b => b.slug === ref || b.id === ref) || null;
+}
+
+function boardSlug(boardId) {
+  if (!boardId || boardId === 'all') return '';
+  const board = boardList.find(b => b.id === boardId);
+  return (board && board.slug) || boardId;
+}
+
+function workspaceRef() {
+  return (currentWorkspace && currentWorkspace.slug)
+    || (workspaceList[0] && workspaceList[0].slug)
+    || '';
+}
+
+// `number` is the public per-board identity; key/uuid remain accepted.
+function cardRef(card) {
+  if (!card) return '';
+  return card.number ? String(card.number) : (card.key || card.id || '');
+}
+
+function boardRoute(board, query) {
+  return {
+    name: 'board',
+    workspaceRef: workspaceRef(),
+    boardRef: (board && board.slug) || board.id,
+    query,
+  };
+}
+
+function workspaceRoute(query) {
+  return { name: 'workspace', workspaceRef: workspaceRef(), query };
+}
+
+function cardRoute(card, query) {
+  const boardId = card.board_id || currentBoardId;
+  const board = getBoardById(boardId);
+  return {
+    name: 'card',
+    workspaceRef: workspaceRef(),
+    boardRef: (board && board.slug) || boardId,
+    cardRef: cardRef(card),
+    query,
+  };
+}
+
+function resolveRouteWorkspace(route) {
+  return route.workspaceRef ? resolveWorkspaceRef(route.workspaceRef) : currentWorkspace;
 }
 
 function findCardByRef(ref) {
   if (!ref) return null;
   const needle = String(ref).toLowerCase();
   const matches = (card) =>
-    card.id === ref || (card.key && String(card.key).toLowerCase() === needle);
+    card.id === ref ||
+    (card.key && String(card.key).toLowerCase() === needle) ||
+    (card.number !== undefined && String(card.number) === needle);
   for (const col of COLUMNS) {
     const card = (state[col.id] || []).find(matches);
     if (card) return card;
@@ -296,113 +373,139 @@ function findCardByRef(ref) {
   return null;
 }
 
-// Redirect pre-router URLs once, then let parseUrl handle the normalized path.
-
-async function _bootBoardFallback(fallbackId, query) {
-  if (fallbackId) {
-    window.history.replaceState(null, '', window.Router.buildUrl({ name: 'board', boardRef: fallbackId, query }));
-    currentBoardId = fallbackId;
-    rememberConcreteBoard(fallbackId);
-    await loadBoardCards(fallbackId);
-    return;
+// Fetch a card through the workspace-scoped route when it is not in the
+// loaded board state (e.g. a stale deep link) and merge it into local state so
+// openDetail() can find it.
+async function fetchWorkspaceCard(board, ref) {
+  if (!currentWorkspace || !board || !board.slug || !window.API.getWorkspaceCard) return null;
+  try {
+    const res = await window.API.getWorkspaceCard(currentWorkspace.slug, board.slug, ref);
+    const apiCard = res && res.card ? res.card : res;
+    if (!apiCard || !apiCard.id) return null;
+    const local = fromAPI(apiCard);
+    cardIndex[local.id] = apiCard;
+    const colId = local.column_id || 'backlog';
+    if (!state[colId]) state[colId] = [];
+    if (!findCardByRef(local.id)) state[colId].push(local);
+    return local;
+  } catch {
+    return null;
   }
-  window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards', query }));
-  currentBoardId = 'all';
-  await loadAllBoardCards();
 }
 
-async function applyBootRoute() {
-  const route = window.Router.parseUrl(location.href);
-  const fallbackId = getDefaultBoardId();
+// Board cards are read through the workspace-scoped route when the active
+// workspace and the board slug are known; the UUID endpoint remains the
+// compatibility fallback.
+async function listCardsForBoard(board) {
+  if (board && board.slug && currentWorkspace && currentWorkspace.slug) {
+    return window.API.listWorkspaceCards(currentWorkspace.slug, board.slug);
+  }
+  return window.API.listCards(board ? board.id : currentBoardId);
+}
 
-  if (route.name === 'root') {
-    await _bootBoardFallback(fallbackId, route.query);
+async function applyBootRoute(route) {
+  route = route || window.Router.parseUrl(location.href);
+  if (!currentWorkspace) return;
+
+  if (route.name === 'settings') {
+    await loadBootBoard();
+    window.openSettings(true, route.section);
     return;
   }
 
-  if (route.name === 'allBoards') {
+  if (route.name === 'root') {
+    await openDefaultBoardRoute(route.query);
+    return;
+  }
+
+  // Unknown workspace refs fall back to the default workspace root.
+  if (!resolveRouteWorkspace(route)) {
+    await openWorkspaceFallback(route.query);
+    return;
+  }
+
+  if (route.name === 'workspace') {
     currentBoardId = 'all';
+    window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute(route.query)));
     await loadAllBoardCards();
     return;
   }
 
   if (route.name === 'board') {
     const board = resolveBoardRef(route.boardRef);
-    if (board) {
-      currentBoardId = board.id;
-      rememberConcreteBoard(board.id);
-      await loadBoardCards(board.id);
-    } else {
-      await _bootBoardFallback(fallbackId, route.query);
+    if (!board) {
+      await openWorkspaceFallback(route.query);
+      return;
     }
+    currentBoardId = board.id;
+    rememberConcreteBoard(board.id);
+    window.history.replaceState(null, '', window.Router.buildUrl(boardRoute(board, route.query)));
+    await loadBoardCards(board.id);
     return;
   }
 
   if (route.name === 'card') {
-    const resolved = resolveBoardRef(route.boardRef);
-    const board = resolved || (fallbackId ? { id: fallbackId } : null);
+    const board = resolveBoardRef(route.boardRef);
     if (!board) {
-      window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards', query: route.query }));
-      currentBoardId = 'all';
-      await loadAllBoardCards();
+      await openWorkspaceFallback(route.query);
       return;
     }
-
     currentBoardId = board.id;
     rememberConcreteBoard(board.id);
     await loadBoardCards(board.id);
 
-    const card = findCardByRef(route.cardRef);
+    let card = findCardByRef(route.cardRef);
+    if (!card) card = await fetchWorkspaceCard(board, route.cardRef);
     if (card) {
-      // A stale/absent board ref in the URL is corrected to the resolved board.
-      if (!resolved) {
-        window.history.replaceState(null, '', window.Router.buildUrl({
-          name: 'card', boardRef: board.id, cardRef: card.key || card.id, query: route.query,
-        }));
-      }
+      window.history.replaceState(null, '', window.Router.buildUrl(cardRoute(card, route.query)));
       openDetail(card.id, true);
     } else {
-      window.history.replaceState(null, '', window.Router.buildUrl({
-        name: 'board', boardRef: board.id, query: route.query,
-      }));
+      window.history.replaceState(null, '', window.Router.buildUrl(boardRoute(board, route.query)));
     }
     return;
   }
 
-  if (route.name === 'settings') {
-    if (fallbackId) {
-      currentBoardId = fallbackId;
-      rememberConcreteBoard(fallbackId);
-      await loadBoardCards(fallbackId);
-    } else {
-      currentBoardId = 'all';
-      await loadAllBoardCards();
-    }
-    window.openSettings(true, route.section);
+  // notFound — default workspace root.
+  await openWorkspaceFallback(route.query);
+}
+
+async function loadBootBoard() {
+  const target = getDefaultBoardId();
+  if (target) {
+    currentBoardId = target;
+    rememberConcreteBoard(target);
+    await loadBoardCards(target);
     return;
   }
-
-  // notFound — normalize to a route the app can render.
-  window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards', query: route.query }));
   currentBoardId = 'all';
   await loadAllBoardCards();
 }
 
-// Re-apply the current URL without refetching the board list (popstate).
-async function handleRoute() {
-  const route = window.Router.parseUrl(location.href);
-
-  if (route.name === 'notFound') {
-    window.history.replaceState(null, '', window.Router.buildUrl({ name: 'allBoards' }));
+async function openDefaultBoardRoute(query) {
+  const target = getDefaultBoardId();
+  const board = target ? getBoardById(target) : null;
+  if (board) {
+    currentBoardId = board.id;
+    rememberConcreteBoard(board.id);
+    window.history.replaceState(null, '', window.Router.buildUrl(boardRoute(board, query)));
+    await loadBoardCards(board.id);
     return;
   }
+  await openWorkspaceFallback(query);
+}
 
-  if (route.name === 'root') {
-    const target = getDefaultBoardId();
-    const state = target ? { name: 'board', boardRef: target } : { name: 'allBoards' };
-    window.history.replaceState(null, '', window.Router.buildUrl(state));
-    return handleRoute();
-  }
+async function openWorkspaceFallback(query) {
+  if (!currentWorkspace) return;
+  currentBoardId = 'all';
+  window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute(query)));
+  await loadAllBoardCards();
+}
+
+// Re-apply the current URL without refetching the workspace/board lists
+// (popstate). The active workspace is the only one loaded in this phase.
+async function handleRoute() {
+  const route = window.Router.parseUrl(location.href);
+  if (!currentWorkspace) return;
 
   if (route.name === 'settings') {
     const detailModal = document.getElementById('detail-modal');
@@ -415,20 +518,41 @@ async function handleRoute() {
   const settingsPage = document.getElementById('settings-page');
   if (settingsPage && settingsPage.classList.contains('active')) window.closeSettings(true);
 
-  if (route.name === 'allBoards') {
+  if (route.name !== 'root') {
+    const requested = resolveRouteWorkspace(route);
+    // Only the active workspace is loaded for popstate navigation; refs to a
+    // different workspace (no selector UI yet) fall back to its root.
+    if (!requested || requested.id !== currentWorkspace.id) {
+      window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute()));
+      await window.selectBoard('all', 'All Boards', { fromRoute: true });
+      return;
+    }
+  }
+
+  if (route.name === 'root') {
+    const target = getDefaultBoardId();
+    const board = target ? getBoardById(target) : null;
+    window.history.replaceState(null, '', window.Router.buildUrl(
+      board ? boardRoute(board) : workspaceRoute(),
+    ));
+    return handleRoute();
+  }
+
+  if (route.name === 'workspace' || route.name === 'notFound') {
     const detailModal = document.getElementById('detail-modal');
     if (detailModal && detailModal.classList.contains('active')) closeDetail(true);
+    if (route.name === 'notFound') {
+      window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute()));
+    }
     await window.selectBoard('all', 'All Boards', { fromRoute: true });
     return;
   }
 
   const board = resolveBoardRef(route.boardRef);
   if (!board) {
-    const target = getDefaultBoardId();
-    window.history.replaceState(null, '', window.Router.buildUrl(
-      target ? { name: 'board', boardRef: target } : { name: 'allBoards' },
-    ));
-    return handleRoute();
+    window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute()));
+    await window.selectBoard('all', 'All Boards', { fromRoute: true });
+    return;
   }
 
   if (route.name === 'card') {
@@ -437,7 +561,7 @@ async function handleRoute() {
     if (card) {
       window.openDetail(card.id, true);
     } else {
-      window.history.replaceState(null, '', window.Router.buildUrl({ name: 'board', boardRef: board.id }));
+      window.history.replaceState(null, '', window.Router.buildUrl(boardRoute(board)));
     }
     return;
   }
@@ -463,7 +587,7 @@ async function loadBoardCards(boardId) {
     } catch (e) { /* keep defaults */ }
   }
 
-  const grouped = await window.API.listCards(boardId);
+  const grouped = await listCardsForBoard(board || { id: boardId });
   if (gen !== _loadGeneration) return; // stale load, discard
   cardIndex = {};
   const prevCleared = state.cleared || [];
@@ -503,7 +627,7 @@ async function loadAllBoardCards() {
   COLUMNS.forEach(col => { state[col.id] = []; });
   for (const board of boardList) {
     try {
-      const grouped = await window.API.listCards(board.id);
+      const grouped = await listCardsForBoard(board);
       if (gen !== _loadGeneration) return; // stale load, discard
       for (const [colId, cards] of Object.entries(grouped || {})) {
         if (colId === 'cleared') {
@@ -1503,12 +1627,9 @@ function openDetail(cardId, _fromRoute) {
 
   // Sync the URL with the open card (unless the route already points at it).
   if (!_fromRoute) {
-    const boardRef = currentBoardId === 'all'
-      ? (foundCard.board_id || currentBoardId)
-      : (currentBoardId || foundCard.board_id);
-    const cardRef = foundCard.key || foundCard.id;
-    if (boardRef && cardRef) {
-      window.Router.navigate({ name: 'card', boardRef, cardRef });
+    const route = cardRoute(foundCard);
+    if (route.workspaceRef && route.boardRef && route.cardRef) {
+      window.Router.navigate(route);
     }
   }
 
@@ -1598,12 +1719,10 @@ function closeDetail(_fromRoute) {
     window.render();
   }
 
-  // Return the URL to the board that is showing behind the modal.
-  if (!_fromRoute && currentBoardId) {
-    window.Router.navigate({
-      name: currentBoardId === 'all' ? 'allBoards' : 'board',
-      boardRef: currentBoardId,
-    }, { replace: true });
+  // Return the URL to the board (or workspace) showing behind the modal.
+  if (!_fromRoute && currentWorkspace) {
+    const board = currentBoardId && currentBoardId !== 'all' ? getBoardById(currentBoardId) : null;
+    window.Router.navigate(board ? boardRoute(board) : workspaceRoute(), { replace: true });
   }
 }
 
@@ -2556,13 +2675,10 @@ function closeLightbox() {
 }
 
 function copyCardLink() {
-  if (!detailCard) return;
-  const boardRef = detailCard.board_id || currentBoardId;
-  const cardRef = detailCard.key || detailCard.id;
-  if (!boardRef || !cardRef) return;
-  const url = window.location.origin + window.Router.buildUrl({
-    name: 'card', boardRef, cardRef,
-  });
+  if (!detailCard || !currentWorkspace) return;
+  const route = cardRoute(detailCard);
+  if (!route.boardRef || !route.cardRef) return;
+  const url = window.location.origin + window.Router.buildUrl(route);
   navigator.clipboard.writeText(url).then(() => {
     const el = document.getElementById('detail-key-text');
     const orig = el.textContent;
@@ -2613,10 +2729,12 @@ function switchBoard(id, name) {
     const isAllBoards = id === 'all';
     currentBoardId = id;
     if (!isAllBoards) rememberConcreteBoard(id);
-    // Keep the URL in sync with the active board.
-    window.Router.navigate(isAllBoards
-      ? { name: 'allBoards' }
-      : { name: 'board', boardRef: id });
+    // Keep the URL in sync with the active board/workspace.
+    if (currentWorkspace) {
+      window.Router.navigate(isAllBoards
+        ? workspaceRoute()
+        : boardRoute(getBoardById(id) || { id, slug: id }));
+    }
     document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _capitalize(name || id);
     closeBoardPicker();
     if (isAllBoards) {
@@ -3227,6 +3345,9 @@ Object.defineProperty(window, 'nextId', { get() { return nextId; }, set(v) { nex
 Object.defineProperty(window, 'currentBoardId', { get() { return currentBoardId; }, set(v) { currentBoardId = v; }, configurable: true });
 Object.defineProperty(window, 'lastConcreteBoardId', { get() { return lastConcreteBoardId; }, set(v) { lastConcreteBoardId = v; }, configurable: true });
 Object.defineProperty(window, 'boardList', { get() { return boardList; }, set(v) { boardList = v; }, configurable: true });
+Object.defineProperty(window, 'workspaceList', { get() { return workspaceList; }, set(v) { workspaceList = v; }, configurable: true });
+Object.defineProperty(window, 'currentWorkspace', { get() { return currentWorkspace; }, set(v) { currentWorkspace = v; }, configurable: true });
+window.boardSlug = boardSlug;
 Object.defineProperty(window, 'cardIndex', { get() { return cardIndex; }, set(v) { cardIndex = v; }, configurable: true });
 window.fromAPI = fromAPI;
 window.getBoardCustomFields = getBoardCustomFields;
