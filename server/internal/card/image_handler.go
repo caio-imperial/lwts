@@ -98,12 +98,8 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := h.resolveExistingCard(r, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 
@@ -153,12 +149,8 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ListImages(w http.ResponseWriter, r *http.Request) {
 	id, err := h.resolveExistingCard(r, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 
@@ -172,12 +164,8 @@ func (h *Handler) GetImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cardID, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 
@@ -218,12 +206,8 @@ func (h *Handler) DeleteImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cardID, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 

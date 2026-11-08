@@ -290,7 +290,7 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 	}
 
 	query := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
-		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
+		c.assignee_id, c.reporter_id, c.points, c.position, c.key, COALESCE(c.number, 0), c.version,
 		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.epic_id, c.custom_fields, c.created_at, c.updated_at,
 		COALESCE(u.name, '') as assignee_name
 		FROM cards c
@@ -312,7 +312,7 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 		var c cardWithAssignee
 		var customFieldsJSON string
 		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version,
+			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Number, &c.Version,
 			&c.DueDate, &c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &customFieldsJSON, &c.CreatedAt, &c.UpdatedAt,
 			&c.AssigneeName); err != nil {
 			writeErr(w, http.StatusInternalServerError, "internal server error")
@@ -402,7 +402,7 @@ func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithA
 		args[i] = id
 	}
 	q := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
-		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
+		c.assignee_id, c.reporter_id, c.points, c.position, c.key, COALESCE(c.number, 0), c.version,
 		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.epic_id, c.custom_fields, c.created_at, c.updated_at,
 		COALESCE(u.name, '') as assignee_name
 		FROM cards c LEFT JOIN users u ON c.assignee_id = u.id
@@ -419,7 +419,7 @@ func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithA
 		var c cardWithAssignee
 		var customFieldsJSON string
 		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version,
+			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Number, &c.Version,
 			&c.DueDate, &c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &customFieldsJSON, &c.CreatedAt, &c.UpdatedAt,
 			&c.AssigneeName); err != nil {
 			return nil, err

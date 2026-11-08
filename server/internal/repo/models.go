@@ -58,14 +58,17 @@ type User struct {
 }
 
 type Board struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	ProjectKey string    `json:"project_key"`
-	OwnerID    string    `json:"owner_id"`
-	Columns    string    `json:"columns"`  // JSON string
-	Settings   string    `json:"settings"` // JSON string
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	ProjectKey  string    `json:"project_key"`
+	WorkspaceID string    `json:"workspace_id"`
+	Slug        string    `json:"slug"`
+	CardSeq     int       `json:"card_seq"`
+	OwnerID     string    `json:"owner_id"`
+	Columns     string    `json:"columns"`  // JSON string
+	Settings    string    `json:"settings"` // JSON string
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type Card struct {
@@ -82,6 +85,7 @@ type Card struct {
 	Points          *int              `json:"points"`
 	Position        int               `json:"position"`
 	Key             string            `json:"key"`
+	Number          int               `json:"number"`
 	Version         int               `json:"version"`
 	DueDate         *string           `json:"due_date"`
 	RelatedCardIDs  string            `json:"related_card_ids"`

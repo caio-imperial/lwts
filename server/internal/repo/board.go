@@ -45,14 +45,17 @@ func (r *BoardRepository) Create(ctx context.Context, name, projectKey, ownerID 
 	}
 
 	return Board{
-		ID:         id,
-		Name:       name,
-		ProjectKey: projectKey,
-		OwnerID:    ownerID,
-		Columns:    defaultCols,
-		Settings:   defaultSettings,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:          id,
+		Name:        name,
+		ProjectKey:  projectKey,
+		WorkspaceID: workspaceID,
+		Slug:        boardSlug,
+		CardSeq:     0,
+		OwnerID:     ownerID,
+		Columns:     defaultCols,
+		Settings:    defaultSettings,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}, nil
 }
 
@@ -61,11 +64,14 @@ func (r *BoardRepository) GetByID(ctx context.Context, id string) (Board, error)
 		return Board{}, ErrNotFound
 	}
 	row := r.ds.QueryRow(ctx,
-		`SELECT id, name, project_key, owner_id, columns, settings, created_at, updated_at
+		`SELECT id, name, project_key, owner_id, columns, settings,
+		        COALESCE(workspace_id, ''), COALESCE(slug, ''), card_seq,
+		        created_at, updated_at
 		 FROM boards WHERE id = $1`, id)
 
 	var b Board
-	err := row.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings, &b.CreatedAt, &b.UpdatedAt)
+	err := row.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings,
+		&b.WorkspaceID, &b.Slug, &b.CardSeq, &b.CreatedAt, &b.UpdatedAt)
 	if err == db.ErrNoRows {
 		return Board{}, ErrNotFound
 	}
@@ -74,7 +80,10 @@ func (r *BoardRepository) GetByID(ctx context.Context, id string) (Board, error)
 
 func (r *BoardRepository) List(ctx context.Context) ([]Board, error) {
 	rows, err := r.ds.Query(ctx,
-		`SELECT id, name, project_key, owner_id, columns, settings, created_at, updated_at FROM boards ORDER BY created_at`)
+		`SELECT id, name, project_key, owner_id, columns, settings,
+		        COALESCE(workspace_id, ''), COALESCE(slug, ''), card_seq,
+		        created_at, updated_at
+		 FROM boards ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +92,8 @@ func (r *BoardRepository) List(ctx context.Context) ([]Board, error) {
 	var boards []Board
 	for rows.Next() {
 		var b Board
-		if err := rows.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings, &b.CreatedAt, &b.UpdatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.Name, &b.ProjectKey, &b.OwnerID, &b.Columns, &b.Settings,
+			&b.WorkspaceID, &b.Slug, &b.CardSeq, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		boards = append(boards, b)

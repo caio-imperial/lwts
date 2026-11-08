@@ -31,7 +31,7 @@ type CardCreate struct {
 }
 
 const cardSelectColumns = `id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, custom_fields, created_at, updated_at`
+		        points, position, key, COALESCE(number, 0), version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, custom_fields, created_at, updated_at`
 
 type cardScanner interface {
 	Scan(dest ...any) error
@@ -41,7 +41,7 @@ func scanCard(scanner cardScanner) (Card, error) {
 	var c Card
 	var customFieldsJSON string
 	err := scanner.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-		&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
+		&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Number, &c.Version, &c.DueDate,
 		&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &customFieldsJSON, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return Card{}, err

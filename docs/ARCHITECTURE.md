@@ -62,16 +62,24 @@ Tables: `users`, `refresh_tokens`, `boards`, `cards`, `comments`, `webhooks`,
 `webhook_deliveries`, `invites`, `settings`, `api_keys`, `discord_integrations`,
 `board_events`, `card_images`, `schema_migrations`.
 
-Card identity constraints (current state):
+Card identity (phase 3a implemented):
 
-- `cards.key` is **globally unique** (`idx_cards_key`).
-- `boards.project_key` is the display prefix; it is **not** unique today.
-- There is no persisted counter: the next number is derived from the keys that
-  already exist in the board.
+- `workspaces` is the platform-wide scope (unique `slug`; one `Default` workspace
+  is created by the migration and existing boards are attached to it).
+- `boards.workspace_id` and `boards.slug` (unique per workspace) identify a
+  board; the alias is the normalized board name and changes when the board is
+  renamed.
+- `boards.card_seq` is the persisted per-board counter; card creation allocates
+  numbers with `UPDATE ... RETURNING` inside the insert transaction.
+- `cards.number` and `cards.key` are unique **per board**
+  (`UNIQUE (board_id, number)`, `UNIQUE (board_id, key)`). The old global
+  `idx_cards_key` was removed.
+- `key` is display/legacy (`PROJ-42`); `number` is the public identity.
+- `GET /api/v1/cards/{key}` returns 409 `ambiguous_key` when the same key
+  exists in more than one board; UUID lookups still work.
 
-The planned change (phase 3) is board-scoped identity: `UNIQUE (board_id, key)`
-and `UNIQUE (board_id, number)`, with `boards.card_seq` as the counter. See
-`AGENTS.md` for the full decision.
+Still pending (phase 3c): workspace-scoped API routes, `/<workspace>/<board>`
+URLs and the workspace selector UI.
 
 ## Frontend (`web/`)
 

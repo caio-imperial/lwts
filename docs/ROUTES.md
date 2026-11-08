@@ -22,11 +22,17 @@ interprets them.
 
 | Ref | Accepted formats (in order) |
 |---|---|
-| `<board>` | `slug` → `uuid` |
+| `<workspace>` | `slug` |
+| `<board>` | `slug` (unique inside the workspace) → `uuid` |
 | `<card>` | `number` (per board) → `key` (`PROJ-42`) → `uuid` |
 
-- Phase 2b: `board = uuid`, `card = key/uuid`.
-- Phase 3: the builder prefers `slug`/`number`; the route shape does not change.
+- Phase 2b (current): `board = uuid`, `card = key/uuid`; workspace is implicit.
+- Phase 3c: `/<workspace>/<board>` and `/<workspace>/<board>/cards/<number>`;
+  board and card IDs resolve inside the workspace.
+
+Keys are unique **per board**; `GET /api/v1/cards/{key}` returns `409
+ambiguous_key` when the key exists in more than one board. Use the card UUID or
+a board-scoped route.
 
 ## Query string
 

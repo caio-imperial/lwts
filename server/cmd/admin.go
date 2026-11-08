@@ -764,6 +764,13 @@ func runRestore() {
 		}
 	}
 
+	// Old backups do not carry workspace/slug/number/card_seq. Rebuild the
+	// identity columns after the inserts; the pass is idempotent.
+	if err := db.BackfillIdentity(ctx, ds); err != nil {
+		fmt.Fprintf(os.Stderr, "backfill identity after restore: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("restored %d boards, %d cards, %d comments from %s (exported %s)\n",
 		len(data.Boards), len(data.Cards), len(data.Comments), inputPath, data.ExportedAt)
 }
