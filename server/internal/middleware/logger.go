@@ -61,13 +61,14 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 				"request_id", GetRequestID(r.Context()),
 				"remote_ip", r.RemoteAddr,
 			}
-			if rec.status >= 500 {
+			switch {
+			case rec.status >= 500:
 				attrs = append(attrs, "error_body", rec.errBody.String())
 				logger.Error("request", attrs...)
-			} else if rec.status >= 400 {
+			case rec.status >= 400:
 				attrs = append(attrs, "error_body", rec.errBody.String())
 				logger.Warn("request", attrs...)
-			} else {
+			default:
 				logger.Info("request", attrs...)
 			}
 		})
