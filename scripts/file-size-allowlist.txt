@@ -16,7 +16,6 @@ web/index.html
 web/src/features.js
 web/src/kanban.js
 web/src/listview.js
-web/src/settings.js
 web/styles/board.css
 web/styles/detail.css
 web/styles/login.css
