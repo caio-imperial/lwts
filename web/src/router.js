@@ -3,9 +3,8 @@
 // Contract: docs/ROUTES.md
 //
 // This module is intentionally free of side effects so it can be unit tested
-// in Node and wired into the SPA in a later phase. Only `parseUrl`,
-// `buildUrl`, `parseLegacy` and the exported constants live here; the History
-// API integration is added when the router is activated.
+// in Node and wired into the SPA in a later phase. The pure helpers live here;
+// `navigate` is the only History API touchpoint and is exported for the SPA.
 
 const BASE_URL = 'http://lwts.local';
 
@@ -145,49 +144,22 @@ export function buildUrl(state) {
 }
 
 /**
- * Detect the pre-router URL scheme and map it to the new route state.
- *
- * Returns null when the URL does not use the legacy scheme.
- *
- * Legacy schemes:
- *   - ?board=<ref>            → /boards/<ref>
- *   - #settings[/<section>]   → /settings[/<section>]
- *   - #<card key>             → /boards/<board>/cards/<key>
+ * Build a URL path (with allowed query filters) from a route state.
+ * Throws when an identity ref is missing for board/card routes.
  */
-export function parseLegacy(input) {
-  const url = toURL(input);
-  const path = normalizePath(url.pathname);
-  const query = pickFilters(url.searchParams);
-  const boardRef = url.searchParams.get('board') || null;
-  const rawHash = (url.hash || '').replace(/^#/, '');
-
-  if (rawHash === 'settings' || rawHash.startsWith('settings/')) {
-    const parts = rawHash.split('/');
-    const section = parts.length > 1 ? safeDecode(parts[1]) : 'general';
-    if (section && SETTINGS_SECTION_RE.test(section)) {
-      return { name: 'settings', section, query };
-    }
-    return { name: 'settings', section: 'general', query };
-  }
-
-  if (rawHash) {
-    const cardRef = safeDecode(rawHash);
-    // Card keys have no slashes. Anything else is not a legacy card link.
-    if (cardRef && !cardRef.includes('/') && path === '/') {
-      return { name: 'card', boardRef, cardRef, query };
-    }
-  }
-
-  if (boardRef && path === '/') {
-    return { name: 'board', boardRef, query };
-  }
-
-  return null;
+/**
+ * Write a route state to the History API without dispatching route handlers.
+ *
+ * Navigation is explicit (push) unless the caller asks for a replace, so the
+ * global `popstate` listener stays the single place that re-applies a route.
+ */
+export function navigate(state, { replace = false } = {}) {
+  const url = buildUrl(state);
+  if (replace) window.history.replaceState(null, '', url);
+  else window.history.pushState(null, '', url);
 }
 
-/**
- * True when the URL uses the legacy scheme and should be redirected once.
- */
-export function isLegacyUrl(input) {
-  return parseLegacy(input) !== null;
+// Browser wiring — the SPA modules read the router through `window.Router`.
+if (typeof window !== 'undefined') {
+  window.Router = { parseUrl, buildUrl, navigate, FILTER_PARAMS };
 }

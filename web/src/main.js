@@ -2,6 +2,7 @@
 // CSS is loaded via <link> tags in index.html to prevent FOUC.
 
 // JS modules — loaded in dependency order
+import './router.js';
 import './auth.js';
 import './api.js';
 import './dropdown.js';
@@ -42,10 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (user && !user.welcomed && window.showWelcome) {
         window.showWelcome();
       }
-      // If hash points to settings, hide the board div before
+      // If the route points to settings, hide the board div before
       // making the container visible to prevent a flash of board content.
-      const hash = window.location.hash.replace(/^#/, '');
-      const isSettingsRoute = hash === 'settings' || hash.startsWith('settings/');
+      const isSettingsRoute = window.Router.parseUrl(location.href).name === 'settings';
       if (isSettingsRoute) {
         const boardDiv = document.getElementById('board');
         if (boardDiv) boardDiv.style.display = 'none';

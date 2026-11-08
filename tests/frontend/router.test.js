@@ -11,15 +11,13 @@ const { pathToFileURL } = require('node:url');
 
 let parseUrl;
 let buildUrl;
-let parseLegacy;
-let isLegacyUrl;
 let FILTER_PARAMS;
 
 before(async () => {
   const mod = await import(
     pathToFileURL(path.join(__dirname, '..', '..', 'web', 'src', 'router.js')).href
   );
-  ({ parseUrl, buildUrl, parseLegacy, isLegacyUrl, FILTER_PARAMS } = mod);
+  ({ parseUrl, buildUrl, FILTER_PARAMS } = mod);
 });
 
 // ── parseUrl ──────────────────────────────────────────────────────────────
@@ -143,47 +141,12 @@ test('buildUrl/parseUrl: round-trip preserva refs e filtros', () => {
   }
 });
 
-// ── parseLegacy ───────────────────────────────────────────────────────────
+// ── Sem suporte a URLs legadas ────────────────────────────────────────────
 
-test('parseLegacy: ?board=<uuid> vira /boards/<uuid>', () => {
-  const route = parseLegacy('/?board=850946ec-91ca-41af-9c0a-da48f757eba0');
-  assert.equal(route.name, 'board');
-  assert.equal(route.boardRef, '850946ec-91ca-41af-9c0a-da48f757eba0');
-  assert.equal(isLegacyUrl('/?board=abc'), true);
-});
-
-test('parseLegacy: #settings e #settings/<section>', () => {
-  assert.equal(parseLegacy('/#settings').section, 'general');
-  assert.equal(parseLegacy('/#settings/boards').section, 'boards');
-
-  const withFilters = parseLegacy('/?q=bug&view=list#settings/appearance');
-  assert.equal(withFilters.section, 'appearance');
-  assert.equal(withFilters.query.get('q'), 'bug');
-  assert.equal(withFilters.query.get('view'), 'list');
-
-  // Seção inválida cai em general.
-  assert.equal(parseLegacy('/#settings/bad%20section').section, 'general');
-});
-
-test('parseLegacy: hash de card (inclusive key com hífen)', () => {
-  const card = parseLegacy('/?board=abc#MY-BOA-1');
-  assert.equal(card.name, 'card');
-  assert.equal(card.boardRef, 'abc');
-  assert.equal(card.cardRef, 'MY-BOA-1');
-
-  const cardWithoutBoard = parseLegacy('/#MY-BOA-1');
-  assert.equal(cardWithoutBoard.name, 'card');
-  assert.equal(cardWithoutBoard.boardRef, null);
-  assert.equal(cardWithoutBoard.cardRef, 'MY-BOA-1');
-
-  const legacySimpleKey = parseLegacy('/#LWTS-9');
-  assert.equal(legacySimpleKey.cardRef, 'LWTS-9');
-});
-
-test('parseLegacy: não trata URLs novas nem hashes inválidos como legado', () => {
-  assert.equal(isLegacyUrl('/boards/abc'), false);
-  assert.equal(parseLegacy('/boards/abc'), null);
-  assert.equal(parseLegacy('/?foo=bar'), null);
-  assert.equal(parseLegacy('/#nope/x'), null);
-  assert.equal(parseLegacy('/'), null);
+test('URLs legadas não são mais interpretadas (hash/query ignorados)', () => {
+  // A decisão do fork é não manter redirects: hash e ?board= são ignorados.
+  assert.equal(parseUrl('/?board=abc').name, 'root');
+  assert.equal(parseUrl('/#settings/boards').name, 'root');
+  assert.equal(parseUrl('/#MY-BOA-1').name, 'root');
+  assert.equal(parseUrl('/?board=abc').query.get('board'), null);
 });
