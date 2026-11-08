@@ -121,7 +121,11 @@ Frontend test dependencies (`jsdom`, `postcss`, `@playwright/test`) live in the
 - `make run` — build, migrate, seed, create admin and start on `:8099` with
   SQLite at `/tmp/lwts-e2e.db`.
 - `make dev` — hot reload with `air` (requires `air` installed).
-- `make verify` — local pre-merge gate (build, vet, Go tests, frontend build).
+- `make verify` — local pre-merge gate (build, file-size check, vet, Go tests,
+  frontend build).
+- `make check-size` — fails when a tracked source file exceeds 500 lines
+  (`scripts/file-size-allowlist.txt` keeps the current exceptions; the list
+  must only shrink).
 - `make test-e2e` — Playwright against the disposable test server on `:8044`
   (system Chrome; `PW_HEADED=1` to watch it).
 - `make verify-full` — `verify` + E2E.
