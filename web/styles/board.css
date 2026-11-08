@@ -130,6 +130,23 @@ body.light-theme #app-board::after {
 .header-board-picker.open .header-board-chevron {
   transform: rotate(180deg);
 }
+/* Workspace picker sits left of the board picker. It reads as context
+   (dimmer, slightly smaller) while the board picker stays the primary title. */
+.header-workspace-picker {
+  font-size: 1rem;
+  color: var(--text-dimmed);
+  max-width: 220px;
+}
+#workspace-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-board-menu.header-workspace-menu {
+  min-width: 220px;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+}
 
 /* Board picker dropdown */
 .header-board-menu {

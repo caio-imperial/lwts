@@ -83,6 +83,7 @@ const API = {
   // Workspace-scoped read routes (workspace -> board -> card). Refs are
   // opaque: workspace slug/uuid, board slug/uuid, card number/key/uuid.
   listWorkspaces() { return this.get('/api/v1/workspaces'); },
+  createWorkspace(name) { return this.post('/api/v1/workspaces', { name }); },
   listWorkspaceBoards(workspaceRef) {
     return this.get('/api/v1/workspaces/' + encodeURIComponent(workspaceRef) + '/boards');
   },
@@ -90,6 +91,12 @@ const API = {
     return this.get(
       '/api/v1/workspaces/' + encodeURIComponent(workspaceRef) +
       '/boards/' + encodeURIComponent(boardRef),
+    );
+  },
+  createWorkspaceBoard(workspaceRef, data) {
+    return this.post(
+      '/api/v1/workspaces/' + encodeURIComponent(workspaceRef) + '/boards',
+      data,
     );
   },
   listWorkspaceCards(workspaceRef, boardRef) {

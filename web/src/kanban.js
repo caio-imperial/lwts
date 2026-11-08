@@ -113,9 +113,9 @@ let nextId = Date.now();
 let currentBoardId = localStorage.getItem('lwts-board-id') || null;
 let lastConcreteBoardId = currentBoardId && currentBoardId !== 'all' ? currentBoardId : null;
 let boardList = [];
-// Workspace state (phase 3c): workspaces are platform-wide, boards are scoped
-// to the current workspace. Only the default workspace is selectable in this
-// phase, but the route contract is already three levels deep.
+// Workspace state (phase 3d): workspaces are platform-wide, boards are scoped
+// to the current workspace. The header workspace picker switches between them;
+// the route contract is three levels deep.
 let workspaceList = [];
 let currentWorkspace = null;
 // Map of card id → server card object (for version tracking)
@@ -250,12 +250,17 @@ async function loadFromAPI() {
     if (!Array.isArray(workspaceList)) workspaceList = [];
 
     // Resolve the workspace before fetching boards: the route's workspace ref
-    // (slug or uuid) wins, otherwise the first workspace is the default.
+    // (slug or uuid) wins, then the last workspace chosen in the picker. The
+    // first workspace is the default fallback.
     const bootRoute = window.Router.parseUrl(location.href);
+    let storedWorkspace = null;
+    try { storedWorkspace = localStorage.getItem('lwts-workspace'); } catch (e) { /* ignore */ }
     currentWorkspace = resolveWorkspaceRef(bootRoute.workspaceRef)
+      || resolveWorkspaceRef(storedWorkspace)
       || workspaceList[0]
       || null;
     if (!currentWorkspace) throw new Error('No workspaces available');
+    try { localStorage.setItem('lwts-workspace', currentWorkspace.slug); } catch (e) { /* ignore */ }
 
     boardList = await window.API.listWorkspaceBoards(currentWorkspace.slug);
     if (!Array.isArray(boardList)) boardList = [];
@@ -271,6 +276,7 @@ async function loadFromAPI() {
     await applyBootRoute(bootRoute);
 
     window.renderBoardPicker();
+    if (typeof window.renderWorkspacePicker === 'function') window.renderWorkspacePicker();
 
     // Connect SSE stream for real-time updates
     if (currentBoardId && currentBoardId !== 'all' && typeof window.connectBoardStream === 'function') {
@@ -502,7 +508,8 @@ async function openWorkspaceFallback(query) {
 }
 
 // Re-apply the current URL without refetching the workspace/board lists
-// (popstate). The active workspace is the only one loaded in this phase.
+// (popstate). A route that names another workspace loads that workspace's
+// boards first; the active workspace stays untouched otherwise.
 async function handleRoute() {
   const route = window.Router.parseUrl(location.href);
   if (!currentWorkspace) return;
@@ -520,9 +527,19 @@ async function handleRoute() {
 
   if (route.name !== 'root') {
     const requested = resolveRouteWorkspace(route);
-    // Only the active workspace is loaded for popstate navigation; refs to a
-    // different workspace (no selector UI yet) fall back to its root.
-    if (!requested || requested.id !== currentWorkspace.id) {
+    // A popstate can land on another workspace (e.g. Back after a switch).
+    // Load its boards before resolving the board ref.
+    if (requested && currentWorkspace && requested.id !== currentWorkspace.id) {
+      try {
+        await window.setActiveWorkspace(requested);
+      } catch (e) {
+        window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute()));
+        await window.selectBoard('all', 'All Boards', { fromRoute: true });
+        return;
+      }
+    }
+    // Unknown refs fall back to the active workspace root.
+    if (!requested) {
       window.history.replaceState(null, '', window.Router.buildUrl(workspaceRoute()));
       await window.selectBoard('all', 'All Boards', { fromRoute: true });
       return;
@@ -714,12 +731,6 @@ function renderBoardPicker() {
   newOpt.textContent = '+ New board';
   newOpt.onclick = createBoard;
   menu.appendChild(newOpt);
-
-  const settingsOpt = document.createElement('div');
-  settingsOpt.className = 'header-board-option';
-  settingsOpt.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings';
-  settingsOpt.onclick = () => { closeBoardPicker(); window.openSettings(false, 'boards'); };
-  menu.appendChild(settingsOpt);
 
   // Update label
   const current = boardList.find(b => b.id === currentBoardId);
@@ -2696,6 +2707,8 @@ function toggleBoardPicker() {
   const picker = document.getElementById('board-picker');
   const isHidden = menu.classList.contains('hidden');
   if (isHidden) {
+    // Only one header menu may be open at a time.
+    if (typeof window.closeWorkspacePicker === 'function') window.closeWorkspacePicker();
     menu.classList.remove('hidden');
     requestAnimationFrame(() => menu.classList.add('visible'));
     picker.classList.add('open');

@@ -35,6 +35,16 @@
   visibility: visible;
 }
 
+/* Compact modal (single-field forms such as "New workspace") */
+.lwts-modal.workspace-modal {
+  --modal-width: 420px;
+  height: auto;
+  max-height: min(90vh, 640px);
+}
+.lwts-modal.workspace-modal .lwts-modal-body {
+  padding: 20px 24px;
+}
+
 .lwts-modal {
   background: var(--modal-surface-bg, var(--page-bg-alt));
   border: 1px solid var(--border-light);
