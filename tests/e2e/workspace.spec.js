@@ -110,3 +110,48 @@ test('create a workspace, add a board, then switch back', async ({ page }) => {
 
   expect(problems).toEqual([]);
 });
+
+test('rename the current workspace updates the picker and the slug', async ({ page }) => {
+  const problems = watchConsole(page);
+  await login(page);
+  const stamp = uniqueStamp();
+
+  // Create a workspace to rename.
+  await openWorkspacePicker(page);
+  await page.locator('#workspace-menu .header-board-option', { hasText: '+ New workspace' }).click();
+  const originalName = `Rename ${stamp}`;
+  await page.fill('#new-workspace-name', originalName);
+  await page.click('#create-workspace-submit');
+  await expect(page.locator('#workspace-picker-label')).toHaveText(originalName);
+
+  const oldSlug = `rename-${stamp}`;
+  const newName = `Renamed ${stamp}`;
+  const newSlug = `renamed-${stamp}`;
+  await expect.poll(() => pathOf(page)).toBe(`/${oldSlug}`);
+
+  // Rename through Settings -> General.
+  await page.goto('/settings');
+  await expect(page.locator('#settings-page')).toHaveClass(/active/);
+  const input = page.locator('[data-setting="general.workspace_name"]');
+  await expect(input).toHaveValue(originalName);
+
+  const patch = page.waitForResponse(
+    (res) => res.request().method() === 'PATCH' && res.url().includes('/api/v1/workspaces/'),
+  );
+  await input.fill(newName);
+  await input.press('Tab');
+  expect((await patch).status()).toBe(200);
+
+  await expect(page.locator('#workspace-picker-label')).toHaveText(newName);
+
+  const origin = new URL(page.url()).origin;
+  const token = await page.evaluate(() => localStorage.getItem('lwts_access_token'));
+  const headers = { Authorization: 'Bearer ' + token };
+  expect((await page.request.get(`${origin}/api/v1/workspaces/${newSlug}/boards`, { headers })).status()).toBe(200);
+  expect((await page.request.get(`${origin}/api/v1/workspaces/${oldSlug}/boards`, { headers })).status()).toBe(404);
+
+  // Closing settings returns to the renamed workspace root.
+  await page.locator('.header-title').click();
+  await expect.poll(() => pathOf(page)).toBe(`/${newSlug}`);
+  expect(problems).toEqual([]);
+});

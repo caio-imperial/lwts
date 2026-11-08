@@ -259,6 +259,18 @@ window.closeWorkspacePickerOnClick = closeWorkspacePickerOnClick;
 window.closeWorkspacePickerOnKey = closeWorkspacePickerOnKey;
 window.setActiveWorkspace = setActiveWorkspace;
 window.switchWorkspace = switchWorkspace;
+window.applyWorkspaceRename = applyWorkspaceRename;
 window.openCreateWorkspaceModal = openCreateWorkspaceModal;
 window.closeCreateWorkspaceModal = closeCreateWorkspaceModal;
 window.submitCreateWorkspace = submitCreateWorkspace;
+
+// applyWorkspaceRename syncs local state after PATCH /workspaces/{ref}: the
+// updated name/slug replaces the cached entry and the picker label.
+function applyWorkspaceRename(updated) {
+  window.workspaceList = (window.workspaceList || []).map((w) => (w.id === updated.id ? updated : w));
+  if (window.currentWorkspace && window.currentWorkspace.id === updated.id) {
+    window.currentWorkspace = updated;
+    try { localStorage.setItem('lwts-workspace', updated.slug); } catch (e) { /* ignore */ }
+  }
+  renderWorkspacePicker();
+}

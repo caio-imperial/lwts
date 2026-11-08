@@ -124,13 +124,38 @@ func (r *WorkspaceRepository) Create(ctx context.Context, name string) (Workspac
 	return w, nil
 }
 
+// UpdateName renames a workspace and recomputes its slug (GitHub-like). The
+// slug is unique platform-wide; the previous slug stops resolving.
+func (r *WorkspaceRepository) UpdateName(ctx context.Context, id, name string) (Workspace, error) {
+	if !isUUID(id) || name == "" {
+		return Workspace{}, ErrNotFound
+	}
+	workspaceSlug, err := r.uniqueSlugExcept(ctx, slug.Normalize(name), id)
+	if err != nil {
+		return Workspace{}, err
+	}
+	now := time.Now().UTC()
+	if _, err := r.ds.Exec(ctx,
+		`UPDATE workspaces SET name = $1, slug = $2, updated_at = $3 WHERE id = $4`,
+		name, workspaceSlug, now, id); err != nil {
+		return Workspace{}, err
+	}
+	return r.GetByID(ctx, id)
+}
+
 // uniqueSlug returns base, or base-2, base-3, ... until no other workspace has
 // that slug.
 func (r *WorkspaceRepository) uniqueSlug(ctx context.Context, base string) (string, error) {
+	return r.uniqueSlugExcept(ctx, base, "")
+}
+
+// uniqueSlugExcept is uniqueSlug ignoring the workspace being renamed.
+func (r *WorkspaceRepository) uniqueSlugExcept(ctx context.Context, base, excludeID string) (string, error) {
 	candidate := base
 	for i := 2; i < 10000; i++ {
 		var found int
-		err := r.ds.QueryRow(ctx, `SELECT 1 FROM workspaces WHERE slug = $1`, candidate).Scan(&found)
+		err := r.ds.QueryRow(ctx,
+			`SELECT 1 FROM workspaces WHERE slug = $1 AND id <> $2`, candidate, excludeID).Scan(&found)
 		if err == db.ErrNoRows {
 			return candidate, nil
 		}

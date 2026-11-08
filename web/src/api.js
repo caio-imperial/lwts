@@ -84,6 +84,9 @@ const API = {
   // opaque: workspace slug/uuid, board slug/uuid, card number/key/uuid.
   listWorkspaces() { return this.get('/api/v1/workspaces'); },
   createWorkspace(name) { return this.post('/api/v1/workspaces', { name }); },
+  updateWorkspace(workspaceRef, data) {
+    return this.request('PATCH', '/api/v1/workspaces/' + encodeURIComponent(workspaceRef), data);
+  },
   listWorkspaceBoards(workspaceRef) {
     return this.get('/api/v1/workspaces/' + encodeURIComponent(workspaceRef) + '/boards');
   },
