@@ -1,27 +1,36 @@
 name: Test & Lint
 
+# Fork: runs on every branch push (no pull requests are used) and can be
+# triggered manually. Uses GitHub-hosted runners instead of the upstream
+# self-hosted ARC runners.
 on:
-  pull_request:
-    branches: [main]
+  push:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   go-test:
     name: Go Tests
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
+          cache: true
+      - run: go build ./...
+      - run: go vet ./...
       - run: go test -v -count=1 ./...
 
   go-test-postgres:
     name: Go Tests (PostgreSQL)
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     services:
       postgres:
         # pgvector/pgvector:pg16 ships postgres 16 with the vector extension
@@ -44,7 +53,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
+          cache: true
       # -p=1 serializes test packages. Integration tests share one postgres
       # instance, and concurrent CREATE TABLE / DROP SCHEMA between packages
       # races on the pg catalog (pg_type_typname_nsp_index), which shows up
@@ -55,19 +64,31 @@ jobs:
 
   golangci-lint:
     name: Lint
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
-      - run: GOBIN=/home/runner/.cache/gobin go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-      - run: /home/runner/.cache/gobin/golangci-lint run ./...
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: node --test tests/frontend/*.test.js
 
   frontend-build:
     name: Frontend Build
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
