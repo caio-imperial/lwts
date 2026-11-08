@@ -98,17 +98,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function showAuthFlow() {
     authRoot.style.display = '';
 
-    Promise.allSettled([
-      fetch('/api/v1/registration-status').then(r => r.json()),
-      fetch('/api/v1/lambda-demo').then(r => r.json()),
-    ])
-      .then(([registrationResult, lambdaDemoResult]) => {
-        const registration = registrationResult.status === 'fulfilled' ? registrationResult.value : null;
-        const lambdaDemoEnabled =
-          lambdaDemoResult.status === 'fulfilled' &&
-          lambdaDemoResult.value &&
-          lambdaDemoResult.value.lambda_demo === true;
-
+    fetch('/api/v1/registration-status').then(r => r.json())
+      .then((registration) => {
         if (registration && registration.first_run) {
           LP.showInitialView('register');
           const subtitle = document.getElementById('auth-subtitle');
@@ -128,28 +119,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         LP.showInitialView('login');
-        if (lambdaDemoEnabled) {
-          applyLambdaDemoLoginDefaults();
-        }
       })
       .catch(() => {
         LP.showInitialView('login');
       });
-  }
-
-  function applyLambdaDemoLoginDefaults() {
-    const emailInput = document.getElementById('login-email');
-    const passwordInput = document.getElementById('login-password');
-    const subtitle = document.getElementById('auth-subtitle');
-
-    if (emailInput && !emailInput.value) {
-      emailInput.value = 'demo@demo.com';
-    }
-    if (passwordInput && !passwordInput.value) {
-      passwordInput.value = 'demo';
-    }
-    if (subtitle) {
-      subtitle.textContent = 'Demo - click Sign in to explore';
-    }
   }
 });
