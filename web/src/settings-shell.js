@@ -152,11 +152,16 @@ function showSettingsSection(id, _fromRoute) {
     el.classList.toggle('active', el.id === 'settings-' + id);
   });
 
-  // Svelte island spike: Appearance is rendered by a Svelte component.
+  // Svelte island spike: Appearance and Boards are rendered by Svelte components.
   if (id === 'appearance') {
     if (typeof window.mountAppearanceIsland === 'function') window.mountAppearanceIsland();
   } else if (typeof window.unmountAppearanceIsland === 'function') {
     window.unmountAppearanceIsland();
+  }
+  if (id === 'boards') {
+    if (typeof window.mountBoardsIsland === 'function') window.mountBoardsIsland();
+  } else if (typeof window.unmountBoardsIsland === 'function') {
+    window.unmountBoardsIsland();
   }
 
   // Section switches replace the current history entry (no new back-step).
@@ -282,6 +287,7 @@ function closeSettings(_fromRoute) {
   if (_sp && !_sp.classList.contains('active')) return;
 
   if (typeof window.unmountAppearanceIsland === 'function') window.unmountAppearanceIsland();
+  if (typeof window.unmountBoardsIsland === 'function') window.unmountBoardsIsland();
 
   // Return to the last concrete board (replace, so back doesn't reopen settings).
   if (!_fromRoute && window.currentWorkspace) {

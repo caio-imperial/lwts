@@ -20,6 +20,7 @@ import './subtasks.js';
 import './a11y.js';
 import './plugins.js';
 import './svelte/mount-appearance.js';
+import './svelte/mount-boards.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const LP = window.LoginPage;
