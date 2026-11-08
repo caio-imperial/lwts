@@ -1,12 +1,12 @@
 // LWTS header plugin system.
 //
-// Lets an external plugin customize the board header brand (.header-title)
-// without forking lwts core. Plugin scripts are injected into <head> by the
-// server (see server/cmd/plugins.go) as <script defer> + a FOUC guard that
-// hides the default .header-title, so the old brand never flashes before the
-// plugin mounts. Plugins register via the order-independent queue
-// window.lwts._hp (or window.lwts.registerHeaderPlugin); this loader boots
-// on DOMContentLoaded and calls mount(el) for every .header-title.
+// Lets an external plugin add a brand element to the board header without
+// forking lwts core. The default static LWTS wordmark is gone; plugins mount
+// into the empty #header-plugin-slot instead. Plugin scripts are injected
+// into <head> by the server (see server/cmd/plugins.go) as <script defer>.
+// Plugins register via the order-independent queue window.lwts._hp (or
+// window.lwts.registerHeaderPlugin); this loader boots on DOMContentLoaded
+// and calls mount(el) for every #header-plugin-slot.
 //
 // In dev (no server-side injection) it falls back to fetching
 // GET /api/v1/plugins and <script>-loading each entry. The right-side
@@ -21,7 +21,8 @@ window.lwts = window.lwts || {};
 window.lwts._hp = window.lwts._hp || [];
 
 const _mounted = [];
-let _slots = null;   // NodeList of .header-title, once booted
+const SLOT_SELECTOR = '#header-plugin-slot';
+let _slots = null;   // NodeList of the plugin slot, once booted
 let _booted = false;
 
 function applyPlugin(plugin) {
@@ -42,12 +43,12 @@ window.lwts.registerHeaderPlugin = function (plugin) {
 };
 
 function boot() {
-  _slots = document.querySelectorAll('.header-title');
+  _slots = document.querySelectorAll(SLOT_SELECTOR);
   _booted = true;
   (window.lwts._hp || []).forEach(applyPlugin);
 
-  // FOUC guard: if no plugin mounted (e.g. the plugin script failed to
-  // load), remove the hide-<style> so the default LWTS title shows again.
+  // The slot is empty until a plugin mounts, so there is no default brand to
+  // protect from a flash. Drop the legacy guard if the server still injected it.
   if (_mounted.length === 0) {
     const guard = document.getElementById('lwts-plugin-fouc');
     if (guard) guard.remove();
@@ -76,7 +77,7 @@ function loadManifest() {
       });
     })
     .catch(() => {
-      // No manifest / fetch failed — default LWTS title stays in place.
+      // No manifest / fetch failed — the slot simply stays empty.
     });
 }
 

@@ -157,7 +157,7 @@ test('settings: open by URL, switch tab, refresh and close', async ({ page }) =>
   await expect(page).toHaveURL(/\/settings\/boards$/);
   await expect(page.locator('#settings-boards')).toHaveClass(/active/);
 
-  await page.locator('.header-title').click();
+  await page.locator('#settings-back').click();
   await expect(page.locator('#settings-page')).not.toHaveClass(/active/);
   await expect.poll(() => pathOf(page))
     .toMatch(new RegExp(`^/${escapeRe(workspace.slug)}/[^/]+$`));

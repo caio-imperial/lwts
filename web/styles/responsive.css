@@ -296,41 +296,28 @@
     min-width: 0;
     flex-shrink: 0;
   }
-  .header-title {
-    font-size: 0;
-    gap: 0;
-  }
-  .header-logo-box {
-    font-size: 1rem;
-    width: 26px;
-    height: 26px;
-  }
-  .header-logo {
-    width: 18px;
-    height: 18px;
-  }
   .header-board-picker {
     font-size: 0.85rem;
     min-width: 0;
     padding: 4px 6px;
   }
-  #board-picker-label {
-    display: inline-block;
-    max-width: 1ch;
-    overflow: hidden;
-    white-space: nowrap;
-    vertical-align: bottom;
-    font-weight: 600;
-    font-size: 1rem;
-  }
   .header-workspace-picker {
-    font-size: 0.78rem;
-    padding: 4px 4px;
-    max-width: 92px;
+    gap: 6px;
+    max-width: 122px;
+    padding: 4px 6px 4px 4px;
+    font-size: 0.86rem;
+  }
+  .header-workspace-logo {
+    width: 22px;
+    height: 22px;
+  }
+  .header-workspace-logo svg {
+    width: 14px;
+    height: 14px;
   }
   #workspace-picker-label {
     display: block;
-    max-width: 76px;
+    max-width: 72px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -338,6 +325,18 @@
   .header-workspace-picker .header-board-chevron {
     width: 12px;
     height: 12px;
+  }
+  .header-secondary-picker {
+    max-width: 84px;
+    font-size: 0.82rem;
+  }
+  #board-picker-label {
+    display: inline-block;
+    max-width: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
   }
   .header-actions {
     flex: 1;

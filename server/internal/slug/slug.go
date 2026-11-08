@@ -26,7 +26,6 @@ var reserved = map[string]bool{
 	"readyz":   true,
 	"boards":   true,
 	"new":      true,
-	"default":  true,
 }
 
 // Normalize converts a display name into a slug:
