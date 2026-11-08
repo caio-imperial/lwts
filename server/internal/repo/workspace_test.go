@@ -95,3 +95,54 @@ func TestWorkspaceNotFound(t *testing.T) {
 		t.Errorf("GetBySlug err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestWorkspaceRename(t *testing.T) {
+	ds := setupTestDB(t)
+	workspaces := NewWorkspaceRepository(ds)
+	ctx := context.Background()
+
+	first, err := workspaces.Create(ctx, "Original")
+	if err != nil {
+		t.Fatalf("create first: %v", err)
+	}
+	second, err := workspaces.Create(ctx, "Other")
+	if err != nil {
+		t.Fatalf("create second: %v", err)
+	}
+
+	renamed, err := workspaces.UpdateName(ctx, first.ID, "Renamed")
+	if err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	if renamed.Name != "Renamed" || renamed.Slug != "renamed" {
+		t.Fatalf("renamed = %+v", renamed)
+	}
+	if _, err := workspaces.GetBySlug(ctx, "original"); err != ErrNotFound {
+		t.Errorf("old slug error = %v, want ErrNotFound", err)
+	}
+	if _, err := workspaces.GetBySlug(ctx, "renamed"); err != nil {
+		t.Errorf("new slug error = %v", err)
+	}
+
+	// Renaming to the same name keeps the slug (self is excluded).
+	again, err := workspaces.UpdateName(ctx, first.ID, "Renamed")
+	if err != nil || again.Slug != "renamed" {
+		t.Fatalf("self rename = (%+v, %v)", again, err)
+	}
+
+	// Collision with another workspace gets a suffix.
+	collision, err := workspaces.UpdateName(ctx, first.ID, "Other")
+	if err != nil {
+		t.Fatalf("collision rename: %v", err)
+	}
+	if collision.Slug != "other-2" {
+		t.Errorf("collision slug = %q, want other-2", collision.Slug)
+	}
+	if _, err := workspaces.GetByID(ctx, second.ID); err != nil {
+		t.Errorf("second workspace disappeared: %v", err)
+	}
+
+	if _, err := workspaces.UpdateName(ctx, "not-a-uuid", "X"); err != ErrNotFound {
+		t.Errorf("rename unknown id error = %v, want ErrNotFound", err)
+	}
+}

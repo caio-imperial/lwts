@@ -323,6 +323,22 @@
     font-weight: 600;
     font-size: 1rem;
   }
+  .header-workspace-picker {
+    font-size: 0.78rem;
+    padding: 4px 4px;
+    max-width: 92px;
+  }
+  #workspace-picker-label {
+    display: block;
+    max-width: 76px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .header-workspace-picker .header-board-chevron {
+    width: 12px;
+    height: 12px;
+  }
   .header-actions {
     flex: 1;
     gap: 6px;

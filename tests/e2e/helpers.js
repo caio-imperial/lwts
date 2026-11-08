@@ -115,6 +115,22 @@ async function pickBoard(page, name) {
   await expect(page.locator('#board-menu')).toBeHidden();
 }
 
+// Workspace picker offers the same header menu behavior as the board picker.
+async function openWorkspacePicker(page) {
+  const menu = page.locator('#workspace-menu');
+  if (!(await menu.isVisible().catch(() => false))) {
+    await page.locator('#workspace-picker').click();
+  }
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+async function pickWorkspace(page, name) {
+  const menu = await openWorkspacePicker(page);
+  await menu.locator('.header-board-option', { hasText: name }).first().click();
+  await expect(page.locator('#workspace-menu')).toBeHidden();
+}
+
 // Opens the create-card modal from the current view.
 async function openCreateCard(page) {
   await page.locator('button[onclick="openCreateModal()"]').first().click();
@@ -137,5 +153,7 @@ module.exports = {
   watchConsole,
   openBoardPicker,
   pickBoard,
+  openWorkspacePicker,
+  pickWorkspace,
   openCreateCard,
 };

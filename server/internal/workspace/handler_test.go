@@ -192,3 +192,39 @@ func TestWorkspaceWrites(t *testing.T) {
 		t.Errorf("unauthenticated status = %d, want 401", rec.Code)
 	}
 }
+
+func TestWorkspaceRenameRoute(t *testing.T) {
+	h, _, _, _, ws, _, _ := setup(t)
+
+	rec := do(h, httptest.NewRequest("PATCH", "/api/v1/workspaces/"+ws.Slug,
+		strings.NewReader(`{"name":"Renamed Workspace"}`)), nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rename status = %d, body %s", rec.Code, rec.Body)
+	}
+	var renamed repo.Workspace
+	if err := json.Unmarshal(rec.Body.Bytes(), &renamed); err != nil {
+		t.Fatalf("decode workspace: %v", err)
+	}
+	if renamed.Slug != "renamed-workspace" || renamed.Name != "Renamed Workspace" {
+		t.Fatalf("renamed = %+v", renamed)
+	}
+
+	// New slug works, old slug is gone.
+	if rec := serve(h, "GET", "/api/v1/workspaces/renamed-workspace/boards"); rec.Code != http.StatusOK {
+		t.Errorf("new slug status = %d, want 200", rec.Code)
+	}
+	if rec := serve(h, "GET", "/api/v1/workspaces/"+ws.Slug+"/boards"); rec.Code != http.StatusNotFound {
+		t.Errorf("old slug status = %d, want 404", rec.Code)
+	}
+
+	rec = do(h, httptest.NewRequest("PATCH", "/api/v1/workspaces/renamed-workspace",
+		strings.NewReader(`{"name":"  "}`)), nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("empty name status = %d, want 400", rec.Code)
+	}
+	rec = do(h, httptest.NewRequest("PATCH", "/api/v1/workspaces/nope",
+		strings.NewReader(`{"name":"X"}`)), nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("unknown workspace status = %d, want 404", rec.Code)
+	}
+}

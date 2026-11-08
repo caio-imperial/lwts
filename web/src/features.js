@@ -50,7 +50,6 @@ async function loadBoardList() {
 
 function _cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
-const _gearIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
 // Shared menu builder used by both board picker and settings picker
 function _buildPickerMenu(menu, opts) {
@@ -121,14 +120,6 @@ function _buildPickerMenu(menu, opts) {
     setTimeout(() => openNewBoardModal(), inSettings ? 400 : 0);
   };
   menu.appendChild(newOpt);
-
-  // Settings
-  const settingsOpt = document.createElement('div');
-  settingsOpt.className = 'header-board-option' + (activeId === 'settings' ? ' active' : '');
-  settingsOpt.style.cssText = 'display:flex;align-items:center;gap:6px';
-  settingsOpt.innerHTML = _gearIcon + ' Settings';
-  settingsOpt.onclick = () => { closeMenu(); window.openSettings(false, 'boards'); };
-  menu.appendChild(settingsOpt);
 }
 
 function renderBoardPicker() {
@@ -375,10 +366,20 @@ async function submitNewBoard() {
   }
 
   try {
-    const board = await window.API.createBoard({ name, project_key: key });
+    if (!window.currentWorkspace) {
+      window.Toast.error('Select a workspace first');
+      return;
+    }
+    const board = await window.API.createWorkspaceBoard(window.currentWorkspace.slug, {
+      name,
+      project_key: key,
+    });
     closeNewBoardModal();
-    window.boardList.push(board);
+    // Refresh the list from the server so the new board's slug is available.
+    const boards = await window.API.listWorkspaceBoards(window.currentWorkspace.slug);
+    window.boardList = Array.isArray(boards) ? boards : [board];
     renderBoardPicker();
+    if (typeof window.renderWorkspacePicker === 'function') window.renderWorkspacePicker();
     selectBoard(board.id, board.name);
     window.Toast.success('Board "' + name + '" created');
   } catch (e) {

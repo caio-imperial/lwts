@@ -28,6 +28,7 @@ func NewHandler(workspaces *repo.WorkspaceRepository, boards *repo.BoardReposito
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("GET /api/v1/workspaces", authMW(http.HandlerFunc(h.List)))
 	mux.Handle("POST /api/v1/workspaces", authMW(http.HandlerFunc(h.Create)))
+	mux.Handle("PATCH /api/v1/workspaces/{workspace}", authMW(http.HandlerFunc(h.Rename)))
 	mux.Handle("GET /api/v1/workspaces/{workspace}/boards", authMW(http.HandlerFunc(h.ListBoards)))
 	mux.Handle("POST /api/v1/workspaces/{workspace}/boards", authMW(http.HandlerFunc(h.CreateBoard)))
 	mux.Handle("GET /api/v1/workspaces/{workspace}/boards/{board}", authMW(http.HandlerFunc(h.GetBoard)))
@@ -66,7 +67,36 @@ type createBoardReq struct {
 	ProjectKey string `json:"project_key"`
 }
 
-// CreateBoard adds a board inside the workspace. The authenticated user becomes
+type renameWorkspaceReq struct {
+	Name string `json:"name"`
+}
+
+// Rename changes the workspace name and recomputes its slug.
+func (h *Handler) Rename(w http.ResponseWriter, r *http.Request) {
+	ws, err := h.resolveWorkspace(r.Context(), r.PathValue("workspace"))
+	if err != nil {
+		writeResolveErr(w, err)
+		return
+	}
+
+	var req renameWorkspaceReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeErr(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	updated, err := h.workspaces.UpdateName(r.Context(), ws.ID, name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+} // CreateBoard adds a board inside the workspace. The authenticated user becomes
 // the board owner and the project key defaults to LWTS.
 func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	ws, err := h.resolveWorkspace(r.Context(), r.PathValue("workspace"))

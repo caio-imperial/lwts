@@ -862,6 +862,12 @@ function populateSettingsForm(category, data) {
       el.value = data[key];
     }
   });
+  // Workspace name is workspace-scoped and comes from the workspaces table,
+  // not from the global general settings payload.
+  if (category === 'general' && window.currentWorkspace) {
+    const nameInput = document.querySelector('[data-setting="general.workspace_name"]');
+    if (nameInput) nameInput.value = window.currentWorkspace.name;
+  }
   // Update FnDropdown instances
   if (category === 'general') {
     if (data.session_length_days && _settingsDropdowns.session_length_days) {
@@ -966,10 +972,22 @@ function initSettingsBindings() {
       if (category === 'appearance') {
         applyAppearanceSettings({ [key]: value });
       }
-      // Live-update header when workspace name changes
+      // Rename the current workspace through the workspace API (the name is
+      // workspace-scoped, not a global setting).
       if (category === 'general' && key === 'workspace_name') {
-        const headerTitle = document.querySelector('.header-title');
-        if (headerTitle) headerTitle.textContent = el.value || 'LWTS';
+        clearTimeout(_settingsDebounce.workspace_rename);
+        _settingsDebounce.workspace_rename = setTimeout(async () => {
+          const name = el.value.trim();
+          if (!name || !window.currentWorkspace) return;
+          try {
+            const updated = await window.API.updateWorkspace(window.currentWorkspace.slug, { name });
+            if (typeof window.applyWorkspaceRename === 'function') window.applyWorkspaceRename(updated);
+            if (window.Toast) window.Toast.success('Workspace renamed');
+          } catch (e) {
+            if (window.Toast) window.Toast.error('Failed to rename workspace');
+          }
+        }, 600);
+        return;
       }
       // Toggle compact cards on board
       if (category === 'general' && key === 'compact_cards') {
