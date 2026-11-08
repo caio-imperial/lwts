@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/oceanplexian/lwts/server/internal/auth"
 	"github.com/oceanplexian/lwts/server/internal/repo"
 )
 
@@ -26,10 +27,80 @@ func NewHandler(workspaces *repo.WorkspaceRepository, boards *repo.BoardReposito
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("GET /api/v1/workspaces", authMW(http.HandlerFunc(h.List)))
+	mux.Handle("POST /api/v1/workspaces", authMW(http.HandlerFunc(h.Create)))
 	mux.Handle("GET /api/v1/workspaces/{workspace}/boards", authMW(http.HandlerFunc(h.ListBoards)))
+	mux.Handle("POST /api/v1/workspaces/{workspace}/boards", authMW(http.HandlerFunc(h.CreateBoard)))
 	mux.Handle("GET /api/v1/workspaces/{workspace}/boards/{board}", authMW(http.HandlerFunc(h.GetBoard)))
 	mux.Handle("GET /api/v1/workspaces/{workspace}/boards/{board}/cards", authMW(http.HandlerFunc(h.ListCards)))
 	mux.Handle("GET /api/v1/workspaces/{workspace}/boards/{board}/cards/{card}", authMW(http.HandlerFunc(h.GetCard)))
+}
+
+type createWorkspaceReq struct {
+	Name string `json:"name"`
+}
+
+// Create adds a workspace. Slugs are derived from the name and are globally
+// unique.
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	var req createWorkspaceReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeErr(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	ws, err := h.workspaces.Create(r.Context(), name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusCreated, ws)
+}
+
+type createBoardReq struct {
+	Name       string `json:"name"`
+	ProjectKey string `json:"project_key"`
+}
+
+// CreateBoard adds a board inside the workspace. The authenticated user becomes
+// the board owner and the project key defaults to LWTS.
+func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
+	ws, err := h.resolveWorkspace(r.Context(), r.PathValue("workspace"))
+	if err != nil {
+		writeResolveErr(w, err)
+		return
+	}
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeErr(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req createBoardReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeErr(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	projectKey := strings.TrimSpace(req.ProjectKey)
+	if projectKey == "" {
+		projectKey = "LWTS"
+	}
+
+	board, err := h.boards.CreateInWorkspace(r.Context(), ws.ID, name, projectKey, user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusCreated, board)
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

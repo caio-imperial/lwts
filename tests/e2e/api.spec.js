@@ -171,3 +171,43 @@ test('workspace-scoped routes return 404 for unknown refs', async ({ request }) 
     expect(res.status(), target).toBe(404);
   }
 });
+
+test('create a workspace and a board inside it', async ({ request }) => {
+  const stamp = String(Date.now()).slice(-6);
+  const res = await request.post('/api/v1/workspaces', {
+    headers: authHeaders(token),
+    data: { name: 'WS Write ' + stamp },
+  });
+  expect(res.status()).toBe(201);
+  const workspace = await res.json();
+  expect(workspace.id).toBeTruthy();
+  expect(workspace.slug).toBeTruthy();
+
+  const boardRes = await request.post(`/api/v1/workspaces/${workspace.slug}/boards`, {
+    headers: authHeaders(token),
+    data: { name: 'Board ' + stamp, project_key: 'WSW' },
+  });
+  expect(boardRes.status()).toBe(201);
+  const board = await boardRes.json();
+  expect(board.workspace_id).toBe(workspace.id);
+  expect(board.slug).toBe(`board-${stamp}`);
+
+  const listRes = await request.get(`/api/v1/workspaces/${workspace.slug}/boards`, {
+    headers: authHeaders(token),
+  });
+  expect(listRes.status()).toBe(200);
+  const boards = await listRes.json();
+  expect(boards.some((b) => b.id === board.id)).toBe(true);
+
+  const empty = await request.post('/api/v1/workspaces', {
+    headers: authHeaders(token),
+    data: { name: '   ' },
+  });
+  expect(empty.status()).toBe(400);
+
+  const missing = await request.post('/api/v1/workspaces/nope/boards', {
+    headers: authHeaders(token),
+    data: { name: 'Nope' },
+  });
+  expect(missing.status()).toBe(404);
+});
