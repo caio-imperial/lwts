@@ -73,6 +73,7 @@ test-pg:
 	DB_URL="postgres://lwts_test:lwts_test@localhost:5433/lwts_test?sslmode=disable" go test -v -count=1 -p=1 -tags=integration ./...
 
 test-sqlite:
+	@rm -f /tmp/lwts-test.db /tmp/lwts-test.db-wal /tmp/lwts-test.db-shm
 	DB_URL="sqlite:///tmp/lwts-test.db" go test -v -count=1 -p=1 -tags=integration ./...
 
 test-frontend:

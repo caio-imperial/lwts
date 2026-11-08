@@ -9,6 +9,13 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/slug"
 )
 
+// BackfillIdentity re-runs the idempotent identity backfill. Used after a
+// restore, which inserts rows that may predate the workspace/slug/number
+// columns.
+func BackfillIdentity(ctx context.Context, ds Datasource) error {
+	return backfillWorkspaces(ctx, ds)
+}
+
 // backfillWorkspaces fills the phase 3a-1 identity columns for pre-existing
 // data. It is called from Migrate while the migration lock is held, and it is
 // idempotent: running it twice changes nothing.

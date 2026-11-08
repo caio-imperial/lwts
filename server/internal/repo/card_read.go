@@ -22,17 +22,36 @@ func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 }
 
 // GetByKey looks up a card by its human-readable key (e.g. "FNAI-245") rather
-// than its UUID. Used by handlers that accept either form in the path.
+// than its UUID. Keys are unique per board, so a key that exists in more than
+// one board returns ErrAmbiguous; callers should use the card UUID or a
+// board-scoped route.
 func (r *CardRepository) GetByKey(ctx context.Context, key string) (Card, error) {
-	row := r.ds.QueryRow(ctx,
+	rows, err := r.ds.Query(ctx,
 		`SELECT `+cardSelectColumns+`
-		 FROM cards WHERE key = $1`, key)
+		 FROM cards WHERE key = $1 LIMIT 2`, key)
+	if err != nil {
+		return Card{}, err
+	}
+	defer rows.Close()
 
-	c, err := scanCard(row)
-	if err == db.ErrNoRows {
+	var matches []Card
+	for rows.Next() {
+		c, err := scanCard(rows)
+		if err != nil {
+			return Card{}, err
+		}
+		matches = append(matches, c)
+	}
+	if err := rows.Err(); err != nil {
+		return Card{}, err
+	}
+	if len(matches) == 0 {
 		return Card{}, ErrNotFound
 	}
-	return c, err
+	if len(matches) > 1 {
+		return Card{}, ErrAmbiguous
+	}
+	return matches[0], nil
 }
 
 func (r *CardRepository) ListByBoard(ctx context.Context, boardID string) ([]Card, error) {

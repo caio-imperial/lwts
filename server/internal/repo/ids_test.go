@@ -17,10 +17,10 @@ func TestIsRetryable(t *testing.T) {
 		{"nil", nil, false},
 		{"deadlock", &pgconn.PgError{Code: "40P01"}, true},
 		{"serialization", &pgconn.PgError{Code: "40001"}, true},
-		{"key unique", &pgconn.PgError{Code: "23505", ConstraintName: "idx_cards_key"}, true},
+		{"key unique no longer retried", &pgconn.PgError{Code: "23505", ConstraintName: "idx_cards_board_key"}, false},
 		{"other unique", &pgconn.PgError{Code: "23505", ConstraintName: "idx_boards_slug"}, false},
 		{"sqlite busy", errors.New("database is locked"), true},
-		{"sqlite key unique", errors.New("constraint failed: UNIQUE constraint failed: cards.key (2067)"), true},
+		{"sqlite key unique no longer retried", errors.New("constraint failed: UNIQUE constraint failed: cards.key (2067)"), false},
 		{"sqlite other unique", errors.New("constraint failed: UNIQUE constraint failed: boards.slug (2067)"), false},
 		{"plain", errors.New("boom"), false},
 	}

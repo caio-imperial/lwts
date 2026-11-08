@@ -233,12 +233,8 @@ func (h *Handler) ListByBoard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 	card, err := h.cards.GetByID(r.Context(), id)
@@ -280,12 +276,8 @@ type updateCardReq struct {
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 
@@ -416,12 +408,8 @@ type moveCardReq struct {
 
 func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 
@@ -704,12 +692,8 @@ func (h *Handler) ClearDone(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
-	if err == repo.ErrNotFound {
-		writeErr(w, http.StatusNotFound, "card not found")
-		return
-	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
+		writeCardResolveError(w, err)
 		return
 	}
 
@@ -750,6 +734,22 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeCardResolveError maps resolveID failures to HTTP responses. Keys are
+// unique per board, so a global key lookup can be ambiguous.
+func writeCardResolveError(w http.ResponseWriter, err error) {
+	switch err {
+	case repo.ErrNotFound:
+		writeErr(w, http.StatusNotFound, "card not found")
+	case repo.ErrAmbiguous:
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":   "ambiguous_key",
+			"message": "card key exists in more than one board; use the card UUID",
+		})
+	default:
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+	}
 }
 
 func writeErr(w http.ResponseWriter, status int, msg string) {
